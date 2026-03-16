@@ -1,0 +1,36 @@
+[
+  {
+    "id": "yearn---",
+    "name": "Beanie",
+    "artist": "yearn",
+    "image": "/uploads/yearn-/IMG_3409.jpeg",
+    "priceCents": 5000,
+    "sizes": [
+      "One of One"
+    ],
+    "description": "one size",
+    "quantity": 2,
+    "isPublished": true,
+    "images": [
+      "/uploads/yearn-/IMG_3409.jpeg",
+      "/uploads/yearn-/IMG_3412.jpeg"
+    ]
+  },
+  {
+    "id": "doom1",
+    "name": "jacket",
+    "artist": "doom",
+    "image": "/uploads/doom1/IMG_3414.jpeg",
+    "priceCents": 8000,
+    "sizes": [
+      "One of One"
+    ],
+    "description": "xxxxx",
+    "quantity": 1,
+    "images": [
+      "/uploads/doom1/IMG_3414.jpeg",
+      "/uploads/doom1/IMG_3415.jpeg"
+    ],
+    "isPublished": true
+  }
+]
