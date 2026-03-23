@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
-import { getCart } from "./cart";
+import { getCartSnapshot, getEmptyCartSnapshot } from "./cart";
 import type { CartItem } from "./cart";
 
 const EVT = "bag:cart";
@@ -21,11 +21,11 @@ function subscribe(onStoreChange: () => void) {
 }
 
 function getServerSnapshot(): CartItem[] {
-  return [];
+  return getEmptyCartSnapshot();
 }
 
 export function useCart() {
-  const items = useSyncExternalStore(subscribe, getCart, getServerSnapshot);
+  const items = useSyncExternalStore(subscribe, getCartSnapshot, getServerSnapshot);
 
   const count = useMemo(() => items.reduce((s, i) => s + i.qty, 0), [items]);
 

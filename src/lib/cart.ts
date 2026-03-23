@@ -10,6 +10,10 @@ type ProductStock = Pick<Product, "id" | "quantity">;
 
 const KEY = "bag_cart_v1";
 const EVT = "bag:cart";
+const EMPTY_CART: CartItem[] = [];
+
+let cachedRawCart: string | null | undefined;
+let cachedSnapshot: CartItem[] = EMPTY_CART;
 
 function storageGet(key: string) {
   if (typeof window === "undefined") return null;
@@ -72,12 +76,33 @@ function safeParse(raw: string | null): CartItem[] {
   }
 }
 
+export function getCartSnapshot(): CartItem[] {
+  const raw = storageGet(KEY);
+
+  if (raw === cachedRawCart) {
+    return cachedSnapshot;
+  }
+
+  const parsed = safeParse(raw);
+  cachedRawCart = raw;
+  cachedSnapshot = parsed.length ? parsed : EMPTY_CART;
+  return cachedSnapshot;
+}
+
+export function getEmptyCartSnapshot(): CartItem[] {
+  return EMPTY_CART;
+}
+
 export function getCart(): CartItem[] {
-  return safeParse(storageGet(KEY));
+  return getCartSnapshot().map((item) => ({ ...item }));
 }
 
 export function setCart(items: CartItem[]) {
-  if (storageSet(KEY, JSON.stringify(items))) {
+  const raw = JSON.stringify(items);
+  if (storageSet(KEY, raw)) {
+    cachedRawCart = raw;
+    const parsed = safeParse(raw);
+    cachedSnapshot = parsed.length ? parsed : EMPTY_CART;
     emitCartUpdate();
   }
 }
@@ -171,6 +196,8 @@ export function removeFromCart(productId: string) {
 
 export function clearCart() {
   if (storageRemove(KEY)) {
+    cachedRawCart = null;
+    cachedSnapshot = EMPTY_CART;
     emitCartUpdate();
   }
 }

@@ -378,7 +378,7 @@ export default function Shell({
           }}
         >
           <Link href="/" aria-label="Home" title="Home" className="topNavLogo">
-            <img src="/brand/logo.png" alt="B.A.G" className="topNavLogoImg" />
+            <img src="/brand/logo.PNG" alt="B.A.G" className="topNavLogoImg" />
           </Link>
 
           <nav className="topNavCenter" aria-label="Primary">

@@ -124,7 +124,7 @@ export default function CartPage() {
                     className="flex items-start rounded-md bg-black/55 p-3"
                   >
                     <img
-                      src={product?.image || "/brand/logo.png"}
+                        src={product?.image || "/brand/logo.PNG"}
                       alt={product?.name || item.productId}
                       className="shrink-0 rounded object-cover"
                       style={{ width: 82, height: 110, marginRight: 22 }}
