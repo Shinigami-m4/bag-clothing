@@ -20,7 +20,7 @@
     "id": "doom1",
     "name": "jacket",
     "artist": "doom",
-    "image": "/uploads/doom1/IMG_3414.jpeg",
+    "image": "/uploads/Doom1/IMG_3414.jpeg",
     "priceCents": 8000,
     "sizes": [
       "One of One"
@@ -28,8 +28,8 @@
     "description": "xxxxx",
     "quantity": 1,
     "images": [
-      "/uploads/doom1/IMG_3414.jpeg",
-      "/uploads/doom1/IMG_3415.jpeg"
+      "/uploads/Doom1/IMG_3414.jpeg",
+      "/uploads/Doom1/IMG_3415.jpeg"
     ],
     "isPublished": true
   }
