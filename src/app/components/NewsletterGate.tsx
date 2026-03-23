@@ -214,13 +214,20 @@ export default function NewsletterGate() {
       onClick={(e) => {
         if (e.target === dialogRef.current) dismiss();
       }}
-      className="border-0 bg-transparent p-0 backdrop:bg-black/75"
+      className="m-0 h-screen w-screen max-w-none border-0 bg-transparent p-3 backdrop:bg-black/75 md:p-6"
     >
-      <div className="w-[min(92vw,560px)]">
-        <div className="rounded-sm bg-[#f4f4f4] text-black" style={{ padding: "30px 34px 28px" }}>
+      <div className="flex min-h-full w-full items-center justify-center">
+        <div className="w-full max-w-[560px]">
+          <div
+            className="max-h-[calc(100dvh-24px)] overflow-y-auto rounded-sm bg-[#f4f4f4] text-black md:max-h-[calc(100dvh-48px)]"
+            style={{
+              padding:
+                "clamp(20px, 4vw, 30px) clamp(18px, 5vw, 34px) clamp(20px, 4vw, 28px)",
+            }}
+          >
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-4xl uppercase tracking-[0.05em]">
+              <h2 className="text-[clamp(1.9rem,8vw,2.25rem)] uppercase tracking-[0.05em]">
                 {isAdminMode ? "Admin Sign In" : "Join The Drop List"}
               </h2>
               <p className="mt-2 text-sm">
@@ -319,7 +326,7 @@ export default function NewsletterGate() {
           )}
         </div>
       </div>
+      </div>
     </dialog>
   );
 }
-
