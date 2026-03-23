@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import Shell from "./components/Shell";
 import NewsletterGate from "./components/NewsletterGate";
+import { Analytics } from "@vercel/analytics/next";
 
 /**
  * RootLayout
@@ -27,6 +28,9 @@ export default function RootLayout({
         <Suspense fallback={<div className="shell"><main className="main">{children}</main></div>}>
           <Shell>{children}</Shell>
         </Suspense>
+        
+        {/* Vercel Web Analytics */}
+        <Analytics />
       </body>
     </html>
   );
