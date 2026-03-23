@@ -4,6 +4,9 @@ import { get, put } from "@vercel/blob";
 
 const jsonCacheSeconds = 60;
 const assetCacheSeconds = 60 * 60 * 24 * 30;
+const legacyBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+const privateBlobToken = process.env.BLOB_PRIVATE_READ_WRITE_TOKEN || legacyBlobToken;
+const publicBlobToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN || legacyBlobToken;
 
 function normalizePathname(value: string) {
   return value.replace(/\\/g, "/").replace(/^\/+/, "");
@@ -18,7 +21,25 @@ function toLocalPublicPath(pathname: string) {
 }
 
 export function isBlobStorageEnabled() {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  return Boolean(privateBlobToken || publicBlobToken);
+}
+
+function isBlobAccessError(error: unknown, mode: "private" | "public") {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return message.includes(`cannot use ${mode} access`) && message.includes("store");
+}
+
+function getBlobAccessError(mode: "private" | "public") {
+  if (mode === "private") {
+    return new Error(
+      "Blob config mismatch: set BLOB_PRIVATE_READ_WRITE_TOKEN to a private Vercel Blob store."
+    );
+  }
+
+  return new Error(
+    "Blob config mismatch: set BLOB_PUBLIC_READ_WRITE_TOKEN to a public Vercel Blob store."
+  );
 }
 
 async function readLocalJson<T>(pathname: string, fallback: T): Promise<T> {
@@ -33,8 +54,17 @@ async function readLocalJson<T>(pathname: string, fallback: T): Promise<T> {
 export async function readJsonStore<T>(pathname: string, fallback: T): Promise<T> {
   const normalized = normalizePathname(pathname);
 
-  if (isBlobStorageEnabled()) {
-    const result = await get(normalized, { access: "private" });
+  if (privateBlobToken) {
+    let result;
+    try {
+      result = await get(normalized, { access: "private", token: privateBlobToken });
+    } catch (error) {
+      if (isBlobAccessError(error, "private")) {
+        throw getBlobAccessError("private");
+      }
+      throw error;
+    }
+
     if (!result || result.statusCode !== 200 || !result.stream) {
       return readLocalJson(normalized, fallback);
     }
@@ -54,14 +84,22 @@ export async function writeJsonStore(pathname: string, value: unknown) {
   const normalized = normalizePathname(pathname);
   const body = JSON.stringify(value, null, 2);
 
-  if (isBlobStorageEnabled()) {
-    await put(normalized, body, {
-      access: "private",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      cacheControlMaxAge: jsonCacheSeconds,
-      contentType: "application/json; charset=utf-8",
-    });
+  if (privateBlobToken) {
+    try {
+      await put(normalized, body, {
+        access: "private",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        cacheControlMaxAge: jsonCacheSeconds,
+        contentType: "application/json; charset=utf-8",
+        token: privateBlobToken,
+      });
+    } catch (error) {
+      if (isBlobAccessError(error, "private")) {
+        throw getBlobAccessError("private");
+      }
+      throw error;
+    }
     return;
   }
 
@@ -76,14 +114,23 @@ export async function savePublicUpload(
 ) {
   const normalized = normalizePathname(pathname);
 
-  if (isBlobStorageEnabled()) {
-    const blob = await put(normalized, file, {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      cacheControlMaxAge: assetCacheSeconds,
-      contentType: file.type || undefined,
-    });
+  if (publicBlobToken) {
+    let blob;
+    try {
+      blob = await put(normalized, file, {
+        access: "public",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        cacheControlMaxAge: assetCacheSeconds,
+        contentType: file.type || undefined,
+        token: publicBlobToken,
+      });
+    } catch (error) {
+      if (isBlobAccessError(error, "public")) {
+        throw getBlobAccessError("public");
+      }
+      throw error;
+    }
     return blob.url;
   }
 

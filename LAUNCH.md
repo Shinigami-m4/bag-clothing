@@ -4,7 +4,8 @@
 
 This app now uses:
 
-- `BLOB_READ_WRITE_TOKEN` for inventory, portfolio entries, Stripe webhook event IDs, and uploaded product/portfolio images.
+- `BLOB_PRIVATE_READ_WRITE_TOKEN` for inventory, portfolio entries, newsletter fallback data, and Stripe webhook event IDs.
+- `BLOB_PUBLIC_READ_WRITE_TOKEN` for uploaded product and portfolio images.
 - `BREVO_API_KEY` for newsletter signups.
 
 If those env vars are missing, the app falls back to local JSON/files for development only.
@@ -12,7 +13,9 @@ If those env vars are missing, the app falls back to local JSON/files for develo
 ## Vercel setup
 
 1. Import the repo into Vercel.
-2. Create a Blob store in the Vercel dashboard.
+2. Create two Blob stores in the Vercel dashboard:
+   - one private store for JSON/data
+   - one public store for uploaded images
 3. Add the environment variables from `.env.example` to Vercel Production.
 4. Set `NEXT_PUBLIC_SITE_URL` to your real domain, for example `https://blackartgoons.com`.
 
