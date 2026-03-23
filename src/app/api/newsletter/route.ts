@@ -31,8 +31,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, provider: "local" });
   } catch (error) {
+    console.error("Newsletter signup failed", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Newsletter signup failed." },
+      { error: "Newsletter signup is temporarily unavailable. Please try again later." },
       { status: 500 },
     );
   }
