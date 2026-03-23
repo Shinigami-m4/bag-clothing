@@ -98,6 +98,16 @@ button { font: inherit; color: inherit; }
     justify-content: flex-start;
     grid-column: 1 / -1;
   }
+  .topAccountMenu {
+    position: fixed;
+    top: 118px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(280px, calc(100vw - 24px));
+    min-width: 0;
+    max-width: calc(100vw - 24px);
+  }
   .main { padding: 20px; }
 }
 

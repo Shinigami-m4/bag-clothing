@@ -227,7 +227,7 @@ export default function NewsletterGate() {
         overflow: "auto",
       }}
     >
-      <div className="flex min-h-full w-full items-start justify-center pt-24 sm:items-center sm:pt-0">
+      <div className="flex min-h-full w-full items-center justify-center">
         <div className="w-full max-w-[560px]">
           <div
             className="max-h-[calc(100dvh-24px)] overflow-y-auto rounded-sm bg-[#f4f4f4] text-black md:max-h-[calc(100dvh-48px)]"
