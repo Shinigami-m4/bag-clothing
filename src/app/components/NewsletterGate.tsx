@@ -2,6 +2,50 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+const NEWSLETTER_DISMISSED_KEY = "bag_newsletter_dismissed";
+
+function safeStorageGet(key: string) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {}
+}
+
+function safeStorageRemove(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {}
+}
+
+function openDialogElement(dialog: HTMLDialogElement) {
+  try {
+    if (typeof dialog.showModal === "function") {
+      dialog.showModal();
+      return;
+    }
+  } catch {}
+
+  dialog.setAttribute("open", "");
+}
+
+function closeDialogElement(dialog: HTMLDialogElement) {
+  try {
+    if (typeof dialog.close === "function") {
+      dialog.close();
+      return;
+    }
+  } catch {}
+
+  dialog.removeAttribute("open");
+}
+
 export default function NewsletterGate() {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
 
@@ -28,30 +72,34 @@ export default function NewsletterGate() {
   }
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    try {
+      const params = new URLSearchParams(window.location.search);
 
-    if (params.has("resetGate")) {
-      localStorage.removeItem("bag_newsletter_dismissed");
-    }
-
-    const dismissed = localStorage.getItem("bag_newsletter_dismissed");
-
-    if (params.has("gate")) {
-      const intent = params.get("intent");
-      if (intent === "admin") {
-        setMode("admin");
-        setEmail(DEV_EMAIL);
-        setNextPath(normalizeNextPath(params.get("next")));
-      } else {
-        setMode("newsletter");
-        setEmail("");
-        setNextPath("/admin");
+      if (params.has("resetGate")) {
+        safeStorageRemove(NEWSLETTER_DISMISSED_KEY);
       }
-      setOpen(true);
-      return;
-    }
 
-    if (!dismissed) {
+      const dismissed = safeStorageGet(NEWSLETTER_DISMISSED_KEY);
+
+      if (params.has("gate")) {
+        const intent = params.get("intent");
+        if (intent === "admin") {
+          setMode("admin");
+          setEmail(DEV_EMAIL);
+          setNextPath(normalizeNextPath(params.get("next")));
+        } else {
+          setMode("newsletter");
+          setEmail("");
+          setNextPath("/admin");
+        }
+        setOpen(true);
+        return;
+      }
+
+      if (!dismissed) {
+        setOpen(true);
+      }
+    } catch {
       setOpen(true);
     }
   }, [DEV_EMAIL]);
@@ -61,11 +109,11 @@ export default function NewsletterGate() {
     if (!dlg) return;
 
     if (open && !dlg.open) {
-      dlg.showModal();
+      openDialogElement(dlg);
     }
 
     if (!open && dlg.open) {
-      dlg.close();
+      closeDialogElement(dlg);
     }
   }, [open]);
 
@@ -99,7 +147,7 @@ export default function NewsletterGate() {
 
   function dismiss() {
     if (!isAdminMode) {
-      localStorage.setItem("bag_newsletter_dismissed", "1");
+      safeStorageSet(NEWSLETTER_DISMISSED_KEY, "1");
     }
     setOpen(false);
   }
@@ -144,7 +192,7 @@ export default function NewsletterGate() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Invalid admin login.");
 
-      localStorage.setItem("bag_newsletter_dismissed", "1");
+      safeStorageSet(NEWSLETTER_DISMISSED_KEY, "1");
       window.location.href = normalizeNextPath(nextPath);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong.";
@@ -274,5 +322,4 @@ export default function NewsletterGate() {
     </dialog>
   );
 }
-
 

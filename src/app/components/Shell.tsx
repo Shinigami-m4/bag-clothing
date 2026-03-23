@@ -15,6 +15,28 @@ type ProductSummary = Pick<
 const SEARCH_RECENT_KEY = "bag_recently_viewed_v1";
 const SEARCH_RECENT_MAX = 8;
 
+function openDialogElement(dialog: HTMLDialogElement) {
+  try {
+    if (typeof dialog.showModal === "function") {
+      dialog.showModal();
+      return;
+    }
+  } catch {}
+
+  dialog.setAttribute("open", "");
+}
+
+function closeDialogElement(dialog: HTMLDialogElement) {
+  try {
+    if (typeof dialog.close === "function") {
+      dialog.close();
+      return;
+    }
+  } catch {}
+
+  dialog.removeAttribute("open");
+}
+
 export default function Shell({
   bg = "/bg/default.jpeg",
   children,
@@ -22,11 +44,11 @@ export default function Shell({
   bg?: string;
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const router = useRouter();
   const search = useSearchParams();
 
-  const activeArtistParam = search.get("artist");
+  const activeArtistParam = search?.get("artist") ?? null;
   const activeArtist =
     activeArtistParam && activeArtistParam in artistConfig
       ? (activeArtistParam as ArtistId)
@@ -134,7 +156,7 @@ export default function Shell({
       setSearchQuery(urlParams.get("q") ?? "");
       setRecentViewedIds(readRecentIdsFromStorage());
     } else {
-      setSearchQuery(search.get("q") ?? "");
+      setSearchQuery(search?.get("q") ?? "");
     }
 
     setSearchOpen(true);
@@ -301,11 +323,11 @@ export default function Shell({
     if (!dlg) return;
 
     if (searchOpen && !dlg.open) {
-      dlg.showModal();
+      openDialogElement(dlg);
     }
 
     if (!searchOpen && dlg.open) {
-      dlg.close();
+      closeDialogElement(dlg);
     }
   }, [searchOpen]);
 
