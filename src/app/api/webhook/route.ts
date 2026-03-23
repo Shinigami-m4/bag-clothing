@@ -5,20 +5,31 @@ import { hasProcessedStripeEvent, markStripeEventProcessed } from "@/lib/stripeE
 
 export const runtime = "nodejs";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+function getStripeClient() {
+  const apiKey = process.env.STRIPE_SECRET_KEY;
+  if (!apiKey) {
+    throw new Error("STRIPE_SECRET_KEY is not configured.");
+  }
+
+  return new Stripe(apiKey, {
+    apiVersion: "2025-12-15.clover",
+  });
+}
 
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
   if (!sig) return NextResponse.json({ error: "Missing signature" }, { status: 400 });
 
   const body = await req.text();
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    return NextResponse.json({ error: "STRIPE_WEBHOOK_SECRET is not configured." }, { status: 500 });
+  }
 
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+    event = getStripeClient().webhooks.constructEvent(body, sig, webhookSecret);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Invalid Stripe signature";
     return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 });

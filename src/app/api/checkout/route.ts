@@ -2,11 +2,18 @@ import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { findLiveProductById } from "@/lib/inventory.server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
-
 type CartItem = { productId: string; qty: number };
+
+function getStripeClient() {
+  const apiKey = process.env.STRIPE_SECRET_KEY;
+  if (!apiKey) {
+    throw new Error("STRIPE_SECRET_KEY is not configured.");
+  }
+
+  return new Stripe(apiKey, {
+    apiVersion: "2025-12-15.clover",
+  });
+}
 
 export async function POST(req: Request) {
   const { items } = (await req.json()) as { items: CartItem[] };
@@ -46,7 +53,12 @@ export async function POST(req: Request) {
     sanitizedItems.push({ productId: p.id, qty });
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!siteUrl) {
+    return NextResponse.json({ error: "NEXT_PUBLIC_SITE_URL is not configured." }, { status: 500 });
+  }
+
+  const stripe = getStripeClient();
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",

@@ -1,4 +1,5 @@
 // src/app/layout.tsx
+import { Suspense } from "react";
 import "./globals.css";
 import Shell from "./components/Shell";
 import NewsletterGate from "./components/NewsletterGate";
@@ -23,7 +24,9 @@ export default function RootLayout({
         <NewsletterGate />
 
         {/* Main site shell */}
-        <Shell>{children}</Shell>
+        <Suspense fallback={<div className="shell"><main className="main">{children}</main></div>}>
+          <Shell>{children}</Shell>
+        </Suspense>
       </body>
     </html>
   );

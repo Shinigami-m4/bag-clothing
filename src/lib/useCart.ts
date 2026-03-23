@@ -1,31 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { getCart, cartCount } from "./cart";
+import { useMemo, useSyncExternalStore } from "react";
+import { getCart } from "./cart";
 import type { CartItem } from "./cart";
 
 const EVT = "bag:cart";
 
+function subscribe(onStoreChange: () => void) {
+  window.addEventListener(EVT, onStoreChange);
+  window.addEventListener("storage", onStoreChange);
+
+  return () => {
+    window.removeEventListener(EVT, onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
+}
+
+function getServerSnapshot(): CartItem[] {
+  return [];
+}
+
 export function useCart() {
-  const [items, setItems] = useState<CartItem[]>([]);
-
-  useEffect(() => {
-    // initial load after hydration
-    setItems(getCart());
-
-    const onUpdate = () => setItems(getCart());
-
-    // your custom event
-    window.addEventListener(EVT, onUpdate);
-
-    // also update across tabs
-    window.addEventListener("storage", onUpdate);
-
-    return () => {
-      window.removeEventListener(EVT, onUpdate);
-      window.removeEventListener("storage", onUpdate);
-    };
-  }, []);
+  const items = useSyncExternalStore(subscribe, getCart, getServerSnapshot);
 
   const count = useMemo(() => items.reduce((s, i) => s + i.qty, 0), [items]);
 

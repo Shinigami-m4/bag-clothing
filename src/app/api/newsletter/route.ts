@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
+import { isBrevoEnabled, subscribeEmailToBrevo } from "@/lib/brevo.server";
+import { readJsonStore, writeJsonStore } from "@/lib/storage.server";
+
+const newsletterStorePath = "newsletter.json";
 
 export async function POST(req: Request) {
   const { email } = await req.json();
@@ -9,22 +11,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Valid email required." }, { status: 400 });
   }
 
-  const file = path.join(process.cwd(), "newsletter.json");
-
-  let list: string[] = [];
-  try {
-    const raw = await fs.readFile(file, "utf8");
-    list = JSON.parse(raw);
-    if (!Array.isArray(list)) list = [];
-  } catch {
-    // file may not exist yet
-  }
-
   const normalized = email.trim().toLowerCase();
-  if (!list.includes(normalized)) {
-    list.push(normalized);
-    await fs.writeFile(file, JSON.stringify(list, null, 2), "utf8");
-  }
 
-  return NextResponse.json({ ok: true });
+  try {
+    if (isBrevoEnabled()) {
+      await subscribeEmailToBrevo(normalized);
+      return NextResponse.json({ ok: true, provider: "brevo" });
+    }
+
+    const list = await readJsonStore<unknown[]>(newsletterStorePath, []);
+    const emails = Array.isArray(list)
+      ? list.filter((value): value is string => typeof value === "string")
+      : [];
+
+    if (!emails.includes(normalized)) {
+      emails.push(normalized);
+      await writeJsonStore(newsletterStorePath, emails);
+    }
+
+    return NextResponse.json({ ok: true, provider: "local" });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Newsletter signup failed." },
+      { status: 500 },
+    );
+  }
 }

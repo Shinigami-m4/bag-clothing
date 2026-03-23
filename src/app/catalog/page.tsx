@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import CatalogControls from "@/app/components/CatalogControls";
 import ProductCard from "@/app/components/ProductCard";
 import { artistConfig, type ArtistId } from "@/lib/artists";
@@ -43,14 +44,16 @@ export default async function CatalogPage({
 
   return (
     <section className="catalogPage">
-      <CatalogControls
-        key={[selectedSort, formatPriceParam(minPriceCents), formatPriceParam(maxPriceCents)].join("|")}
-        selectedSort={selectedSort}
-        minPrice={formatPriceParam(minPriceCents)}
-        maxPrice={formatPriceParam(maxPriceCents)}
-        maxAvailablePrice={formatPriceParam(maxAvailablePriceCents)}
-        resultCount={list.length}
-      />
+      <Suspense fallback={null}>
+        <CatalogControls
+          key={[selectedSort, formatPriceParam(minPriceCents), formatPriceParam(maxPriceCents)].join("|")}
+          selectedSort={selectedSort}
+          minPrice={formatPriceParam(minPriceCents)}
+          maxPrice={formatPriceParam(maxPriceCents)}
+          maxAvailablePrice={formatPriceParam(maxAvailablePriceCents)}
+          resultCount={list.length}
+        />
+      </Suspense>
 
       {q ? (
         <p className="catalogSearchMeta">

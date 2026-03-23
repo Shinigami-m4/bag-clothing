@@ -1,8 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 import { clearCart } from "@/lib/cart";
-import Shell from "@/app/components/Shell";
 
 export default function SuccessPage() {
   useEffect(() => {
@@ -10,10 +10,10 @@ export default function SuccessPage() {
   }, []);
 
   return (
-    <Shell bg="/bg/default.jpeg">
-      <h1 className="title">Payment successful 🎉</h1>
+    <section className="mx-auto max-w-3xl rounded-lg bg-black/60 p-6 text-white backdrop-blur-sm">
+      <h1 className="title">Payment successful</h1>
       <p>Thank you! Your order is confirmed.</p>
-      <a href="/">Back to shop</a>
-    </Shell>
+      <Link href="/">Back to shop</Link>
+    </section>
   );
 }

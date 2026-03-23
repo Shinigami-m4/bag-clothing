@@ -1,12 +1,6 @@
 import Link from "next/link";
-import Shell from "@/app/components/Shell";
-import { artistConfig, type ArtistId } from "@/lib/artists";
 
 export const dynamic = "force-dynamic";
-
-console.log("SERVER ENV CHECK:", {
-  NEXT_PUBLIC_DEV_ADMIN_EMAIL: process.env.NEXT_PUBLIC_DEV_ADMIN_EMAIL,
-});
 
 export default function HomePage() {
   return (

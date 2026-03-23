@@ -1,7 +1,6 @@
-import fs from "fs/promises";
-import path from "path";
 import { artistConfig, type ArtistId } from "@/lib/artists";
 import { products, type Product } from "@/lib/products";
+import { readJsonStore, savePublicUpload, writeJsonStore } from "@/lib/storage.server";
 
 export type InventoryProduct = Product & {
   description?: string;
@@ -10,8 +9,7 @@ export type InventoryProduct = Product & {
   isPublished: boolean;
 };
 
-const inventoryFile = path.join(process.cwd(), "inventory.json");
-const uploadsRoot = path.join(process.cwd(), "public", "uploads");
+const inventoryStorePath = "inventory.json";
 
 function sanitizeSegment(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-");
@@ -90,20 +88,16 @@ function normalizeInventoryItem(raw: unknown): InventoryProduct | null {
 }
 
 export async function readInventory(): Promise<InventoryProduct[]> {
-  try {
-    const raw = await fs.readFile(inventoryFile, "utf8");
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((entry) => normalizeInventoryItem(entry))
-      .filter((entry): entry is InventoryProduct => Boolean(entry));
-  } catch {
-    return [];
-  }
+  const parsed = await readJsonStore<unknown[]>(inventoryStorePath, []);
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed
+    .map((entry) => normalizeInventoryItem(entry))
+    .filter((entry): entry is InventoryProduct => Boolean(entry));
 }
 
 async function writeInventory(items: InventoryProduct[]) {
-  await fs.writeFile(inventoryFile, JSON.stringify(items, null, 2), "utf8");
+  await writeJsonStore(inventoryStorePath, items);
 }
 
 export async function getAllProducts(): Promise<Product[]> {
@@ -197,9 +191,6 @@ export async function saveProductAssets(productId: string, files: File[]) {
   if (files.length === 0) return [];
 
   const safeId = sanitizeSegment(productId || "product");
-  const destRoot = path.join(uploadsRoot, safeId);
-  await fs.mkdir(destRoot, { recursive: true });
-
   const savedPaths: string[] = [];
 
   for (const file of files) {
@@ -209,11 +200,7 @@ export async function saveProductAssets(productId: string, files: File[]) {
       .filter(Boolean)
       .map((segment) => sanitizeSegment(segment));
     const relPath = cleaned.length ? cleaned.join("/") : "asset";
-    const absPath = path.join(destRoot, relPath);
-    await fs.mkdir(path.dirname(absPath), { recursive: true });
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    await fs.writeFile(absPath, bytes);
-    savedPaths.push(`/uploads/${safeId}/${relPath.replace(/\\/g, "/")}`);
+    savedPaths.push(await savePublicUpload(`uploads/${safeId}/${relPath.replace(/\\/g, "/")}`, file));
   }
 
   return savedPaths;

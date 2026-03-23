@@ -1,17 +1,12 @@
-import fs from "fs/promises";
-import path from "path";
+import { readJsonStore, writeJsonStore } from "@/lib/storage.server";
 
-const processedEventsFile = path.join(process.cwd(), "stripe-events.json");
+const processedEventsStorePath = "stripe-events.json";
 
 async function readProcessedEventIds() {
-  try {
-    const raw = await fs.readFile(processedEventsFile, "utf8");
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
-  } catch {
-    return [];
-  }
+  const parsed = await readJsonStore<unknown[]>(processedEventsStorePath, []);
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 }
 
 export async function hasProcessedStripeEvent(eventId: string) {
@@ -24,6 +19,6 @@ export async function markStripeEventProcessed(eventId: string) {
   if (ids.includes(eventId)) return ids;
 
   const next = [eventId, ...ids].slice(0, 500);
-  await fs.writeFile(processedEventsFile, JSON.stringify(next, null, 2), "utf8");
+  await writeJsonStore(processedEventsStorePath, next);
   return next;
 }
