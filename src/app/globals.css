@@ -578,6 +578,7 @@ button { font: inherit; color: inherit; }
 }
 
 .catalogPage,
+.cartPage,
 .portfolioPage,
 .adminPage {
   padding-top: 26px;

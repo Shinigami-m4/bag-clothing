@@ -97,7 +97,7 @@ export default function CartPage() {
   }
 
   return (
-    <section className="mx-auto max-w-6xl">
+    <section className="cartPage mx-auto max-w-6xl">
       <div className="rounded-lg bg-black/60 p-5 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-4xl font-bold">Cart ({count})</h1>
