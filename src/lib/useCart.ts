@@ -7,6 +7,10 @@ import type { CartItem } from "./cart";
 const EVT = "bag:cart";
 
 function subscribe(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
   window.addEventListener(EVT, onStoreChange);
   window.addEventListener("storage", onStoreChange);
 

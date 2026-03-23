@@ -11,9 +11,40 @@ type ProductStock = Pick<Product, "id" | "quantity">;
 const KEY = "bag_cart_v1";
 const EVT = "bag:cart";
 
+function storageGet(key: string) {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(key: string, value: string) {
+  if (typeof window === "undefined") return false;
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function storageRemove(key: string) {
+  if (typeof window === "undefined") return false;
+  try {
+    window.localStorage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function emitCartUpdate() {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(EVT));
+  try {
+    window.dispatchEvent(new Event(EVT));
+  } catch {}
 }
 
 function safeParse(raw: string | null): CartItem[] {
@@ -42,14 +73,13 @@ function safeParse(raw: string | null): CartItem[] {
 }
 
 export function getCart(): CartItem[] {
-  if (typeof window === "undefined") return [];
-  return safeParse(window.localStorage.getItem(KEY));
+  return safeParse(storageGet(KEY));
 }
 
 export function setCart(items: CartItem[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(KEY, JSON.stringify(items));
-  emitCartUpdate();
+  if (storageSet(KEY, JSON.stringify(items))) {
+    emitCartUpdate();
+  }
 }
 
 export function addToCart(product: Product, qty = 1) {
@@ -140,9 +170,9 @@ export function removeFromCart(productId: string) {
 }
 
 export function clearCart() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(KEY);
-  emitCartUpdate();
+  if (storageRemove(KEY)) {
+    emitCartUpdate();
+  }
 }
 
 export function cartCount() {

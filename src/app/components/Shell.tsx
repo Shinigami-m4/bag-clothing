@@ -15,6 +15,32 @@ type ProductSummary = Pick<
 const SEARCH_RECENT_KEY = "bag_recently_viewed_v1";
 const SEARCH_RECENT_MAX = 8;
 
+function storageGet(key: string) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function storageRemove(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function openDialogElement(dialog: HTMLDialogElement) {
   try {
     if (typeof dialog.showModal === "function") {
@@ -112,7 +138,7 @@ export default function Shell({
   function readRecentIdsFromStorage() {
     if (typeof window === "undefined") return [] as string[];
     try {
-      const raw = JSON.parse(window.localStorage.getItem(SEARCH_RECENT_KEY) || "[]");
+      const raw = JSON.parse(storageGet(SEARCH_RECENT_KEY) || "[]");
       if (!Array.isArray(raw)) return [];
       return raw
         .filter((x): x is string => typeof x === "string")
@@ -126,7 +152,7 @@ export default function Shell({
 
   function writeRecentIdsToStorage(ids: string[]) {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(SEARCH_RECENT_KEY, JSON.stringify(ids));
+    storageSet(SEARCH_RECENT_KEY, JSON.stringify(ids));
   }
 
   function pushRecentViewed(productId: string) {
@@ -143,7 +169,7 @@ export default function Shell({
   function clearRecentViewed() {
     setRecentViewedIds([]);
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem(SEARCH_RECENT_KEY);
+      storageRemove(SEARCH_RECENT_KEY);
     }
   }
 
