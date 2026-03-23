@@ -214,9 +214,20 @@ export default function NewsletterGate() {
       onClick={(e) => {
         if (e.target === dialogRef.current) dismiss();
       }}
-      className="m-0 h-screen w-screen max-w-none border-0 bg-transparent p-3 backdrop:bg-black/75 md:p-6"
+      className="border-0 bg-transparent backdrop:bg-black/75"
+      style={{
+        position: "fixed",
+        inset: 0,
+        width: "100vw",
+        height: "100dvh",
+        maxWidth: "100vw",
+        maxHeight: "100dvh",
+        margin: 0,
+        padding: "12px",
+        overflow: "auto",
+      }}
     >
-      <div className="flex min-h-full w-full items-center justify-center">
+      <div className="flex min-h-full w-full items-start justify-center pt-24 sm:items-center sm:pt-0">
         <div className="w-full max-w-[560px]">
           <div
             className="max-h-[calc(100dvh-24px)] overflow-y-auto rounded-sm bg-[#f4f4f4] text-black md:max-h-[calc(100dvh-48px)]"
