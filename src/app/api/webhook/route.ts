@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { decrementInventoryProductQuantities } from "@/lib/inventory.server";
-import { hasProcessedStripeEvent, markStripeEventProcessed } from "@/lib/stripeEvents.server";
+import { hasProcessedStripeSession, markStripeSessionProcessed } from "@/lib/stripeEvents.server";
 
 export const runtime = "nodejs";
 
@@ -35,12 +35,33 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 });
   }
 
-  if (event.type === "checkout.session.completed") {
-    if (await hasProcessedStripeEvent(event.id)) {
+  if (
+    event.type === "checkout.session.completed" ||
+    event.type === "checkout.session.async_payment_succeeded"
+  ) {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const sessionId = typeof session.id === "string" ? session.id.trim() : "";
+    if (!sessionId) {
+      return NextResponse.json({ error: "Missing checkout session id." }, { status: 400 });
+    }
+
+    if (await hasProcessedStripeSession(sessionId)) {
       return NextResponse.json({ received: true, duplicate: true });
     }
 
-    const session = event.data.object as Stripe.Checkout.Session;
+    const isPaidNow =
+      event.type === "checkout.session.async_payment_succeeded" ||
+      session.payment_status === "paid" ||
+      session.payment_status === "no_payment_required";
+
+    if (!isPaidNow) {
+      return NextResponse.json({
+        received: true,
+        pending: true,
+        payment_status: session.payment_status ?? "unknown",
+      });
+    }
+
     const rawCart = session.metadata?.cart;
     let cart: Array<{ productId: string; qty: number }> = [];
 
@@ -64,10 +85,12 @@ export async function POST(req: Request) {
       await decrementInventoryProductQuantities(cart);
     }
 
-    await markStripeEventProcessed(event.id);
+    await markStripeSessionProcessed(sessionId);
 
     console.log("Payment confirmed:", {
       id: session.id,
+      eventType: event.type,
+      payment_status: session.payment_status,
       email: session.customer_details?.email,
       amount_total: session.amount_total,
       metadata: session.metadata,
