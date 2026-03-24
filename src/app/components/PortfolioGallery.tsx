@@ -143,7 +143,14 @@ export default function PortfolioGallery({ items }: { items: PortfolioGalleryIte
             }}
           >
             <div>
-              <h2 style={{ margin: 0, fontSize: "clamp(24px, 3vw, 40px)", letterSpacing: "0.04em" }}>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: "clamp(24px, 3vw, 40px)",
+                  letterSpacing: "0.04em",
+                  color: "#fff",
+                }}
+              >
                 {activeEntry.title}
               </h2>
               {activeEntry.description ? (
@@ -370,7 +377,7 @@ export default function PortfolioGallery({ items }: { items: PortfolioGalleryIte
                       gap: 12,
                     }}
                   >
-                    <h2 style={{ margin: 0, fontSize: 22 }}>{entry.title}</h2>
+                    <h2 style={{ margin: 0, fontSize: 22, color: "#fff" }}>{entry.title}</h2>
                     <span style={{ fontSize: 12, letterSpacing: "0.08em", opacity: 0.76 }}>
                       VIEW ENTRY
                     </span>
