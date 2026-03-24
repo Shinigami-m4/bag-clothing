@@ -107,14 +107,28 @@ button { font: inherit; color: inherit; }
     grid-column: 2;
     grid-row: 1;
     min-width: 0;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 10px;
-    letter-spacing: 0.16em;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: center;
+    justify-items: center;
+    gap: 4px;
+    font-size: 9px;
+    letter-spacing: 0.12em;
     white-space: nowrap;
   }
+  .topNavCenter > a,
+  .topNavCenter > .topDropdown {
+    width: 100%;
+    min-width: 0;
+  }
+  .topDropdown {
+    width: 100%;
+  }
   .topLink {
-    padding: 6px 2px;
+    display: block;
+    width: 100%;
+    padding: 6px 0;
+    text-align: center;
   }
   .topNavRight {
     grid-column: 1 / -1;
@@ -146,15 +160,15 @@ button { font: inherit; color: inherit; }
     row-gap: 10px;
   }
   .topNavLogoImg {
-    width: 38px;
+    width: 34px;
   }
   .topNavCenter {
-    gap: 6px;
-    font-size: 9px;
-    letter-spacing: 0.12em;
+    gap: 2px;
+    font-size: 8px;
+    letter-spacing: 0.08em;
   }
   .topLink {
-    padding: 6px 1px;
+    padding: 6px 0;
   }
   .topNavRight {
     gap: 18px;
