@@ -90,10 +90,10 @@ button { font: inherit; color: inherit; }
     height: auto;
     min-height: 138px;
     padding: 12px 16px 14px;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 40px minmax(0, 1fr);
     grid-template-rows: auto auto;
     row-gap: 12px;
-    column-gap: 12px;
+    column-gap: 10px;
   }
   .topNavLogo {
     grid-column: 1;
@@ -121,9 +121,6 @@ button { font: inherit; color: inherit; }
     width: 100%;
     min-width: 0;
   }
-  .topDropdown {
-    width: 100%;
-  }
   .topLink {
     display: block;
     width: 100%;
@@ -133,9 +130,13 @@ button { font: inherit; color: inherit; }
   .topNavRight {
     grid-column: 1 / -1;
     grid-row: 2;
-    width: 100%;
+    width: max-content;
+    margin: 0 auto;
     justify-content: center;
     gap: 20px;
+  }
+  .topNavRight > .topDropdown {
+    width: auto;
   }
   .topMenuRight.topAccountMenu {
     position: fixed;
@@ -156,22 +157,23 @@ button { font: inherit; color: inherit; }
   .topNav {
     min-height: 132px;
     padding: 10px 12px 14px;
-    column-gap: 10px;
+    grid-template-columns: 32px minmax(0, 1fr);
+    column-gap: 8px;
     row-gap: 10px;
   }
   .topNavLogoImg {
-    width: 34px;
+    width: 28px;
   }
   .topNavCenter {
-    gap: 2px;
-    font-size: 8px;
-    letter-spacing: 0.08em;
+    gap: 4px;
+    font-size: 7px;
+    letter-spacing: 0.05em;
   }
   .topLink {
     padding: 6px 0;
   }
   .topNavRight {
-    gap: 18px;
+    gap: 22px;
   }
   .topMenuRight.topAccountMenu {
     top: 138px;
