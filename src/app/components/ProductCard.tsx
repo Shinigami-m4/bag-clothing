@@ -218,7 +218,14 @@ export default function ProductCard({ p }: { p: Product }) {
               }}
             >
               <div>
-                <h2 style={{ margin: 0, fontSize: "clamp(24px, 3vw, 40px)", letterSpacing: "0.04em" }}>
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: "clamp(24px, 3vw, 40px)",
+                    letterSpacing: "0.04em",
+                    color: "#fff",
+                  }}
+                >
                   {p.name}
                 </h2>
                 <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.78)" }}>
