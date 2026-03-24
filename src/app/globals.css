@@ -157,26 +157,31 @@ button { font: inherit; color: inherit; }
   .topNav {
     min-height: 132px;
     padding: 10px 12px 14px;
-    grid-template-columns: 24px 0.82fr 1.1fr 1.32fr 0.96fr;
-    column-gap: 10px;
+    grid-template-columns: 28px minmax(0, 1fr);
+    column-gap: 14px;
     row-gap: 10px;
   }
   .topNavLogo {
     grid-column: 1;
     grid-row: 1;
+    align-self: center;
   }
   .topNavLogoImg {
-    width: 24px;
+    width: 28px;
   }
   .topNavCenter {
-    display: contents;
+    grid-column: 2;
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: 0.8fr 1.08fr 1.34fr 1fr;
+    align-items: center;
+    justify-items: center;
+    gap: 8px;
+    padding-left: 2px;
     font-size: 7px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
   }
-  .topNavCenter > :nth-child(1) { grid-column: 2; grid-row: 1; }
-  .topNavCenter > :nth-child(2) { grid-column: 3; grid-row: 1; }
-  .topNavCenter > :nth-child(3) { grid-column: 4; grid-row: 1; }
-  .topNavCenter > :nth-child(4) { grid-column: 5; grid-row: 1; }
   .topNavCenter > * {
     min-width: 0;
     width: 100%;
