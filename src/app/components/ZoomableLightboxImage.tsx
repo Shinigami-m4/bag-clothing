@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type ZoomableLightboxImageProps = {
   src: string;
@@ -10,7 +10,8 @@ type ZoomableLightboxImageProps = {
   children?: React.ReactNode;
 };
 
-const defaultZoomOrigin = "50% 50%";
+const zoomScale = 2.2;
+const defaultOffset = { x: 0, y: 0 };
 
 export default function ZoomableLightboxImage({
   src,
@@ -20,25 +21,94 @@ export default function ZoomableLightboxImage({
   children,
 }: ZoomableLightboxImageProps) {
   const [zoomed, setZoomed] = useState(false);
-  const [zoomOrigin, setZoomOrigin] = useState(defaultZoomOrigin);
+  const [dragging, setDragging] = useState(false);
+  const [offset, setOffset] = useState(defaultOffset);
+  const dragStateRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
 
   useEffect(() => {
     setZoomed(false);
-    setZoomOrigin(defaultZoomOrigin);
+    setDragging(false);
+    setOffset(defaultOffset);
   }, [src]);
 
-  function handleImageClick(event: React.MouseEvent<HTMLButtonElement>) {
-    if (zoomed) {
-      setZoomed(false);
-      setZoomOrigin(defaultZoomOrigin);
+  function clampOffset(x: number, y: number, rect: DOMRect) {
+    const maxX = Math.max(0, (rect.width * (zoomScale - 1)) / 2);
+    const maxY = Math.max(0, (rect.height * (zoomScale - 1)) / 2);
+
+    return {
+      x: Math.max(-maxX, Math.min(maxX, x)),
+      y: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  }
+
+  function resetZoom() {
+    setZoomed(false);
+    setDragging(false);
+    setOffset(defaultOffset);
+  }
+
+  function handleImageClick() {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
       return;
     }
 
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 100;
-    const y = ((event.clientY - rect.top) / rect.height) * 100;
-    setZoomOrigin(`${Math.max(0, Math.min(100, x))}% ${Math.max(0, Math.min(100, y))}%`);
+    if (zoomed) {
+      resetZoom();
+      return;
+    }
+
     setZoomed(true);
+    setOffset(defaultOffset);
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+    if (!zoomed) return;
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: offset.x,
+      originY: offset.y,
+      moved: false,
+    };
+    setDragging(true);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragStateRef.current;
+    if (!zoomed || !drag || drag.pointerId !== event.pointerId) return;
+
+    const nextX = drag.originX + (event.clientX - drag.startX);
+    const nextY = drag.originY + (event.clientY - drag.startY);
+    if (Math.abs(nextX - drag.originX) > 3 || Math.abs(nextY - drag.originY) > 3) {
+      drag.moved = true;
+    }
+
+    setOffset(clampOffset(nextX, nextY, event.currentTarget.getBoundingClientRect()));
+  }
+
+  function finishPointerInteraction(target: HTMLButtonElement, pointerId: number) {
+    const drag = dragStateRef.current;
+    if (!drag || drag.pointerId !== pointerId) return;
+
+    if (drag.moved) {
+      suppressClickRef.current = true;
+    }
+
+    setDragging(false);
+    dragStateRef.current = null;
+    target.releasePointerCapture?.(pointerId);
   }
 
   return (
@@ -59,6 +129,10 @@ export default function ZoomableLightboxImage({
       <button
         type="button"
         onClick={handleImageClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={(event) => finishPointerInteraction(event.currentTarget, event.pointerId)}
+        onPointerCancel={(event) => finishPointerInteraction(event.currentTarget, event.pointerId)}
         aria-label={zoomed ? "Reset image zoom" : "Zoom image"}
         style={{
           width: "100%",
@@ -68,7 +142,10 @@ export default function ZoomableLightboxImage({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          cursor: zoomed ? "zoom-out" : "zoom-in",
+          cursor: zoomed ? (dragging ? "grabbing" : "grab") : "zoom-in",
+          touchAction: zoomed ? "none" : "auto",
+          userSelect: "none",
+          WebkitUserSelect: "none",
         }}
       >
         <img
@@ -79,29 +156,14 @@ export default function ZoomableLightboxImage({
             maxHeight,
             objectFit: "contain",
             display: "block",
-            transform: `scale(${zoomed ? 2.2 : 1})`,
-            transformOrigin: zoomOrigin,
-            transition: "transform 180ms ease-out",
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoomed ? zoomScale : 1})`,
+            transformOrigin: "50% 50%",
+            transition: dragging ? "none" : "transform 180ms ease-out",
             willChange: "transform",
+            pointerEvents: "none",
           }}
         />
       </button>
-
-      <div
-        style={{
-          position: "absolute",
-          top: 16,
-          left: 16,
-          borderRadius: 999,
-          background: "rgba(0,0,0,0.55)",
-          padding: "8px 12px",
-          fontSize: 11,
-          letterSpacing: "0.08em",
-          pointerEvents: "none",
-        }}
-      >
-        {zoomed ? "CLICK IMAGE TO RESET" : "CLICK IMAGE TO ZOOM"}
-      </div>
 
       {children}
     </div>
