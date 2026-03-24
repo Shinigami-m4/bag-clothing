@@ -609,15 +609,15 @@ export default function Shell({
                       key={`recent-${p.id}`}
                       type="button"
                       onClick={() => jumpToProduct(p)}
-                      className="bg-white text-left hover:opacity-90"
+                      className="bg-black text-left text-white hover:opacity-90"
                     >
                       <img
                         src={p.image}
                         alt={p.name}
                         className="mb-1.5 h-24 w-full object-cover sm:h-[100px]"
                       />
-                      <p className="truncate text-[10px] uppercase tracking-[0.03em]">{p.name}</p>
-                      <p className="text-[10px] text-black/70">${formatMoney(p.priceCents)}</p>
+                      <p className="truncate text-[10px] uppercase tracking-[0.03em] text-white">{p.name}</p>
+                      <p className="text-[10px] text-white/70">${formatMoney(p.priceCents)}</p>
                     </button>
                   ))}
                 </div>
@@ -638,15 +638,15 @@ export default function Shell({
                       key={p.id}
                       type="button"
                       onClick={() => jumpToProduct(p)}
-                      className="bg-white text-left hover:opacity-90"
+                      className="bg-black text-left text-white hover:opacity-90"
                     >
                       <img
                         src={p.image}
                         alt={p.name}
                         className="mb-1.5 h-24 w-full object-cover sm:h-[100px]"
                       />
-                      <p className="truncate text-[10px] uppercase tracking-[0.03em]">{p.name}</p>
-                      <p className="text-[10px] text-black/70">${formatMoney(p.priceCents)}</p>
+                      <p className="truncate text-[10px] uppercase tracking-[0.03em] text-white">{p.name}</p>
+                      <p className="text-[10px] text-white/70">${formatMoney(p.priceCents)}</p>
                     </button>
                   ))}
                 </div>
