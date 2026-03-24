@@ -103,19 +103,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "valid artist required" }, { status: 400 });
     }
 
+    const existing = (await readInventory()).find((x) => x.id === id);
+
     const item: InventoryProduct = {
       id,
       name,
       artist,
-      image: required(body?.image, "image"),
-      priceCents: toInt(body?.priceCents, 0),
-      sizes: body && Object.hasOwn(body, "sizes") ? parseSizes(body?.sizes) : ["One of One"],
-      description: body?.description ? String(body.description).trim() : undefined,
-      quantity: toInt(body?.quantity, 0),
-      isPublished: toPublished(body?.isPublished, false),
+      image: required(String(body?.image || existing?.image || ""), "image"),
+      priceCents: toInt(body?.priceCents, existing?.priceCents ?? 0),
+      sizes:
+        body && Object.hasOwn(body, "sizes")
+          ? parseSizes(body?.sizes)
+          : existing?.sizes ?? ["One of One"],
+      description:
+        body && Object.hasOwn(body, "description")
+          ? String(body?.description || "").trim() || undefined
+          : existing?.description,
+      quantity: toInt(body?.quantity, existing?.quantity ?? 0),
+      isPublished: toPublished(body?.isPublished, existing?.isPublished ?? false),
       images: Array.isArray(body?.images)
         ? body.images.map((x: unknown) => String(x)).filter(Boolean)
-        : undefined,
+        : existing?.images,
     };
 
     const items = await upsertInventoryProduct(item);

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { upload } from "@vercel/blob/client";
 import { artistConfig, type ArtistId } from "@/lib/artists";
 import { formatMoney } from "@/lib/products";
+import { buildPortfolioAssetPath, buildProductAssetPath } from "@/lib/uploadPaths";
 
 type InventoryItem = {
   id: string;
@@ -26,6 +28,7 @@ type PortfolioItem = {
 };
 
 const ARTIST_OPTIONS = Object.keys(artistConfig) as ArtistId[];
+const multipartUploadThresholdBytes = 5 * 1024 * 1024;
 
 function parseOptionalUsdToCents(raw: string): number | null {
   const value = raw.trim();
@@ -57,6 +60,25 @@ function readImageFiles(fileList: FileList | null) {
   });
 }
 
+async function uploadAdminImages(
+  files: File[],
+  makePathname: (file: File) => string,
+) {
+  const uploaded: string[] = [];
+
+  for (const file of files) {
+    const blob = await upload(makePathname(file), file, {
+      access: "public",
+      handleUploadUrl: "/api/admin/uploads",
+      multipart: file.size >= multipartUploadThresholdBytes,
+      contentType: file.type || undefined,
+    });
+    uploaded.push(blob.url);
+  }
+
+  return uploaded;
+}
+
 export default function AdminPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [id, setId] = useState("");
@@ -70,6 +92,7 @@ export default function AdminPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const [inventoryActionId, setInventoryActionId] = useState<string | null>(null);
 
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
@@ -80,6 +103,7 @@ export default function AdminPage() {
   const [portfolioFiles, setPortfolioFiles] = useState<File[]>([]);
   const [portfolioPending, setPortfolioPending] = useState(false);
   const [portfolioError, setPortfolioError] = useState("");
+  const [portfolioPendingLabel, setPortfolioPendingLabel] = useState<string | null>(null);
   const [logoutPending, setLogoutPending] = useState(false);
 
   const folderRef = useRef<HTMLInputElement>(null);
@@ -180,6 +204,7 @@ export default function AdminPage() {
   async function addInventoryItem(e: React.FormEvent) {
     e.preventDefault();
     setPending(true);
+    setPendingLabel(null);
     setError("");
 
     try {
@@ -193,24 +218,33 @@ export default function AdminPage() {
         throw new Error("Quantity must be a whole number (0 or higher).");
       }
 
-      const form = new FormData();
-      form.append("id", id.trim());
-      form.append("name", name.trim());
-      form.append("artist", artist);
-      form.append("priceCents", String(priceCents));
-      form.append("description", description);
-      form.append("quantity", String(quantity));
-      form.append("isPublished", String(isPublished));
-      form.append("image", image.trim());
-
-      for (const file of files) {
-        const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-        form.append("assets", file, relPath || file.name);
+      const productId = id.trim();
+      let uploaded: string[] = [];
+      if (files.length > 0) {
+        setPendingLabel(`Uploading ${files.length} image${files.length === 1 ? "" : "s"}...`);
+        uploaded = await uploadAdminImages(files, (file) => {
+          const relPath =
+            (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+          return buildProductAssetPath(productId, relPath || file.name);
+        });
       }
+
+      setPendingLabel("Saving product...");
 
       const res = await fetch("/api/admin/products", {
         method: "POST",
-        body: form,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: productId,
+          name: name.trim(),
+          artist,
+          priceCents,
+          description,
+          quantity,
+          isPublished,
+          image: image.trim() || uploaded[0] || "",
+          images: uploaded.length ? uploaded : undefined,
+        }),
       });
 
       if (res.status === 401) {
@@ -229,6 +263,7 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : "Failed to save product");
     } finally {
       setPending(false);
+      setPendingLabel(null);
     }
   }
 
@@ -285,23 +320,35 @@ export default function AdminPage() {
   async function addPortfolioItem(e: React.FormEvent) {
     e.preventDefault();
     setPortfolioPending(true);
+    setPortfolioPendingLabel(null);
     setPortfolioError("");
 
     try {
-      const form = new FormData();
-      if (portfolioEditId) form.append("id", portfolioEditId);
-      form.append("title", portfolioTitle.trim());
-      form.append("description", portfolioDescription);
-      form.append("coverImage", portfolioCoverImage.trim());
-
-      for (const file of portfolioFiles) {
-        const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-        form.append("assets", file, relPath || file.name);
+      const entryId = portfolioEditId || `${portfolioTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "portfolio"}-${Date.now()}`;
+      let uploaded: string[] = [];
+      if (portfolioFiles.length > 0) {
+        setPortfolioPendingLabel(
+          `Uploading ${portfolioFiles.length} image${portfolioFiles.length === 1 ? "" : "s"}...`,
+        );
+        uploaded = await uploadAdminImages(portfolioFiles, (file) => {
+          const relPath =
+            (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+          return buildPortfolioAssetPath(entryId, relPath || file.name);
+        });
       }
+
+      setPortfolioPendingLabel("Saving portfolio entry...");
 
       const res = await fetch("/api/admin/portfolio", {
         method: "POST",
-        body: form,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: portfolioEditId || entryId,
+          title: portfolioTitle.trim(),
+          description: portfolioDescription,
+          coverImage: portfolioCoverImage.trim() || uploaded[0] || "",
+          images: uploaded.length ? uploaded : undefined,
+        }),
       });
 
       if (res.status === 401) {
@@ -320,6 +367,7 @@ export default function AdminPage() {
       setPortfolioError(err instanceof Error ? err.message : "Failed to save portfolio entry");
     } finally {
       setPortfolioPending(false);
+      setPortfolioPendingLabel(null);
     }
   }
 
@@ -571,7 +619,11 @@ export default function AdminPage() {
               className="rounded bg-white px-4 py-3 font-medium text-black disabled:opacity-60"
               style={{ color: "#000", WebkitTextFillColor: "#000" }}
             >
-              {pending ? "Saving..." : isPublished ? "Save Live Product" : "Save Draft Product"}
+              {pending
+                ? pendingLabel || "Saving..."
+                : isPublished
+                  ? "Save Live Product"
+                  : "Save Draft Product"}
             </button>
             <button
               type="button"
@@ -753,7 +805,11 @@ export default function AdminPage() {
               className="rounded bg-white px-4 py-3 font-medium text-black disabled:opacity-60"
               style={{ color: "#000", WebkitTextFillColor: "#000" }}
             >
-              {portfolioPending ? "Saving..." : portfolioEditId ? "Update Portfolio Entry" : "Add Portfolio Entry"}
+              {portfolioPending
+                ? portfolioPendingLabel || "Saving..."
+                : portfolioEditId
+                  ? "Update Portfolio Entry"
+                  : "Add Portfolio Entry"}
             </button>
             <button
               type="button"

@@ -1,6 +1,7 @@
 import { artistConfig, type ArtistId } from "@/lib/artists";
 import { products, type Product } from "@/lib/products";
 import { readJsonStore, savePublicUpload, writeJsonStore } from "@/lib/storage.server";
+import { buildProductAssetPath } from "@/lib/uploadPaths";
 
 export type InventoryProduct = Product & {
   description?: string;
@@ -10,10 +11,6 @@ export type InventoryProduct = Product & {
 };
 
 const inventoryStorePath = "inventory.json";
-
-function sanitizeSegment(value: string) {
-  return value.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-");
-}
 
 function toArtistId(value: unknown): ArtistId | null {
   if (typeof value !== "string") return null;
@@ -190,17 +187,12 @@ export async function decrementInventoryProductQuantities(lines: Array<{ product
 export async function saveProductAssets(productId: string, files: File[]) {
   if (files.length === 0) return [];
 
-  const safeId = sanitizeSegment(productId || "product");
   const savedPaths: string[] = [];
 
   for (const file of files) {
-    const incoming = file.name || "asset";
-    const cleaned = incoming
-      .split(/[\\/]+/)
-      .filter(Boolean)
-      .map((segment) => sanitizeSegment(segment));
-    const relPath = cleaned.length ? cleaned.join("/") : "asset";
-    savedPaths.push(await savePublicUpload(`uploads/${safeId}/${relPath.replace(/\\/g, "/")}`, file));
+    const incoming =
+      (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name || "asset";
+    savedPaths.push(await savePublicUpload(buildProductAssetPath(productId, incoming), file));
   }
 
   return savedPaths;

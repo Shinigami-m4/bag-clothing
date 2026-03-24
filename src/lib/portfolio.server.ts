@@ -1,4 +1,5 @@
 import { readJsonStore, savePublicUpload, writeJsonStore } from "@/lib/storage.server";
+import { buildPortfolioAssetPath } from "@/lib/uploadPaths";
 
 export type PortfolioEntry = {
   id: string;
@@ -10,10 +11,6 @@ export type PortfolioEntry = {
 };
 
 const portfolioStorePath = "portfolio.json";
-
-function sanitizeSegment(value: string) {
-  return value.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-");
-}
 
 function normalizePortfolioEntry(raw: unknown): PortfolioEntry | null {
   if (!raw || typeof raw !== "object") return null;
@@ -82,19 +79,12 @@ export async function deletePortfolioEntry(id: string) {
 export async function savePortfolioAssets(entryId: string, files: File[]) {
   if (files.length === 0) return [];
 
-  const safeId = sanitizeSegment(entryId || "portfolio");
   const savedPaths: string[] = [];
 
   for (const file of files) {
-    const incoming = file.name || "asset";
-    const cleaned = incoming
-      .split(/[\\/]+/)
-      .filter(Boolean)
-      .map((segment) => sanitizeSegment(segment));
-    const relPath = cleaned.length ? cleaned.join("/") : "asset";
-    savedPaths.push(
-      await savePublicUpload(`uploads/portfolio/${safeId}/${relPath.replace(/\\/g, "/")}`, file),
-    );
+    const incoming =
+      (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name || "asset";
+    savedPaths.push(await savePublicUpload(buildPortfolioAssetPath(entryId, incoming), file));
   }
 
   return savedPaths;

@@ -68,20 +68,26 @@ export async function POST(req: Request) {
     const body = await req.json();
     const title = required(body?.title, "title");
     const id = String(body?.id || "").trim() || makeId(title);
-    const coverImage = required(body?.coverImage, "coverImage");
+    const existing = (await readPortfolio()).find((x) => x.id === id);
+    const coverImage = required(String(body?.coverImage || existing?.coverImage || ""), "coverImage");
 
     const item: PortfolioEntry = {
       id,
       title,
-      description: body?.description ? String(body.description).trim() : undefined,
+      description:
+        body && Object.hasOwn(body, "description")
+          ? String(body.description || "").trim() || undefined
+          : existing?.description,
       coverImage,
       images: Array.isArray(body?.images)
         ? body.images.map((x: unknown) => String(x).trim()).filter(Boolean)
-        : [coverImage],
+        : existing?.images?.length
+          ? existing.images
+          : [coverImage],
       createdAt:
         typeof body?.createdAt === "string" && body.createdAt.trim()
           ? body.createdAt.trim()
-          : new Date().toISOString(),
+          : existing?.createdAt || new Date().toISOString(),
     };
 
     const items = await upsertPortfolioEntry(item);
