@@ -10,7 +10,8 @@ type ZoomableLightboxImageProps = {
   children?: React.ReactNode;
 };
 
-const zoomScale = 2.2;
+const minZoomLevel = 1;
+const maxZoomLevel = 5;
 const defaultOffset = { x: 0, y: 0 };
 
 export default function ZoomableLightboxImage({
@@ -20,7 +21,7 @@ export default function ZoomableLightboxImage({
   maxHeight,
   children,
 }: ZoomableLightboxImageProps) {
-  const [zoomed, setZoomed] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(minZoomLevel);
   const [dragging, setDragging] = useState(false);
   const [offset, setOffset] = useState(defaultOffset);
   const dragStateRef = useRef<{
@@ -32,16 +33,17 @@ export default function ZoomableLightboxImage({
     moved: boolean;
   } | null>(null);
   const suppressClickRef = useRef(false);
+  const zoomed = zoomLevel > minZoomLevel;
 
   useEffect(() => {
-    setZoomed(false);
+    setZoomLevel(minZoomLevel);
     setDragging(false);
     setOffset(defaultOffset);
   }, [src]);
 
-  function clampOffset(x: number, y: number, rect: DOMRect) {
-    const maxX = Math.max(0, (rect.width * (zoomScale - 1)) / 2);
-    const maxY = Math.max(0, (rect.height * (zoomScale - 1)) / 2);
+  function clampOffset(x: number, y: number, rect: DOMRect, scale = zoomLevel) {
+    const maxX = Math.max(0, (rect.width * (scale - 1)) / 2);
+    const maxY = Math.max(0, (rect.height * (scale - 1)) / 2);
 
     return {
       x: Math.max(-maxX, Math.min(maxX, x)),
@@ -50,24 +52,26 @@ export default function ZoomableLightboxImage({
   }
 
   function resetZoom() {
-    setZoomed(false);
+    setZoomLevel(minZoomLevel);
     setDragging(false);
     setOffset(defaultOffset);
   }
 
-  function handleImageClick() {
+  function handleImageClick(event: React.MouseEvent<HTMLButtonElement>) {
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
       return;
     }
 
-    if (zoomed) {
+    if (zoomLevel >= maxZoomLevel) {
       resetZoom();
       return;
     }
 
-    setZoomed(true);
-    setOffset(defaultOffset);
+    const nextZoomLevel = zoomLevel + 1;
+    const rect = event.currentTarget.getBoundingClientRect();
+    setZoomLevel(nextZoomLevel);
+    setOffset((current) => clampOffset(current.x, current.y, rect, nextZoomLevel));
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
@@ -133,7 +137,9 @@ export default function ZoomableLightboxImage({
         onPointerMove={handlePointerMove}
         onPointerUp={(event) => finishPointerInteraction(event.currentTarget, event.pointerId)}
         onPointerCancel={(event) => finishPointerInteraction(event.currentTarget, event.pointerId)}
-        aria-label={zoomed ? "Reset image zoom" : "Zoom image"}
+        aria-label={
+          zoomLevel >= maxZoomLevel ? "Reset image zoom" : `Zoom image to ${zoomLevel + 1}x`
+        }
         style={{
           width: "100%",
           border: "none",
@@ -156,7 +162,7 @@ export default function ZoomableLightboxImage({
             maxHeight,
             objectFit: "contain",
             display: "block",
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoomed ? zoomScale : 1})`,
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoomLevel})`,
             transformOrigin: "50% 50%",
             transition: dragging ? "none" : "transform 180ms ease-out",
             willChange: "transform",
