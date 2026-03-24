@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import ZoomableLightboxImage from "@/app/components/ZoomableLightboxImage";
 
 type PortfolioGalleryItem = {
   id: string;
@@ -173,31 +174,12 @@ export default function PortfolioGallery({ items }: { items: PortfolioGalleryIte
             </button>
           </div>
 
-          <div
-            style={{
-              position: "relative",
-              borderRadius: 22,
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              overflow: "hidden",
-              minHeight: "min(70vh, 720px)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "clamp(18px, 3vw, 28px)",
-            }}
+          <ZoomableLightboxImage
+            src={activeImageSrc}
+            alt={`${activeEntry.title} ${activeImageIndex + 1}`}
+            minHeight="min(70vh, 720px)"
+            maxHeight="min(64vh, 680px)"
           >
-            <img
-              src={activeImageSrc}
-              alt={`${activeEntry.title} ${activeImageIndex + 1}`}
-              style={{
-                width: "100%",
-                maxHeight: "min(64vh, 680px)",
-                objectFit: "contain",
-                display: "block",
-              }}
-            />
-
             {activeImages.length > 1 ? (
               <>
                 <button
@@ -258,11 +240,11 @@ export default function PortfolioGallery({ items }: { items: PortfolioGalleryIte
                   fontSize: 12,
                   letterSpacing: "0.08em",
                 }}
-              >
-                {activeImageIndex + 1} / {activeImages.length}
-              </div>
-            ) : null}
-          </div>
+                >
+                  {activeImageIndex + 1} / {activeImages.length}
+                </div>
+              ) : null}
+          </ZoomableLightboxImage>
 
           {activeImages.length > 1 ? (
             <div

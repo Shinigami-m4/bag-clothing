@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { addToCart, getCartItemQty, reconcileCartQuantities } from "@/lib/cart";
 import { formatMoney, type Product } from "@/lib/products";
 import { useCart } from "@/lib/useCart";
+import ZoomableLightboxImage from "@/app/components/ZoomableLightboxImage";
 
 export default function ProductCard({ p }: { p: Product }) {
   const [added, setAdded] = useState(false);
@@ -257,31 +258,12 @@ export default function ProductCard({ p }: { p: Product }) {
               </button>
             </div>
 
-            <div
-              style={{
-                position: "relative",
-                borderRadius: 22,
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                overflow: "hidden",
-                minHeight: hasImageStrip ? "min(48vh, 560px)" : "min(70vh, 720px)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "clamp(18px, 3vw, 28px)",
-              }}
+            <ZoomableLightboxImage
+              src={gallery[imageIndex]}
+              alt={`${p.name} ${imageIndex + 1}`}
+              minHeight={hasImageStrip ? "min(48vh, 560px)" : "min(70vh, 720px)"}
+              maxHeight={hasImageStrip ? "min(42vh, 500px)" : "min(64vh, 680px)"}
             >
-              <img
-                src={gallery[imageIndex]}
-                alt={`${p.name} ${imageIndex + 1}`}
-                style={{
-                  width: "100%",
-                  maxHeight: hasImageStrip ? "min(42vh, 500px)" : "min(64vh, 680px)",
-                  objectFit: "contain",
-                  display: "block",
-                }}
-              />
-
               {hasImageStrip ? (
                 <>
                   <button
@@ -346,7 +328,7 @@ export default function ProductCard({ p }: { p: Product }) {
                   {imageIndex + 1} / {gallery.length}
                 </div>
               ) : null}
-            </div>
+            </ZoomableLightboxImage>
 
             {hasImageStrip ? (
               <div
