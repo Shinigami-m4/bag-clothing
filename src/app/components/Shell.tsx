@@ -546,7 +546,7 @@ export default function Shell({
         className="border-0 bg-white p-0 shadow-none backdrop:bg-black/70"
       >
         <div
-          className="w-[min(86vw,640px)] overflow-hidden rounded-sm bg-white text-black shadow-2xl"
+          className="w-[min(86vw,600px)] overflow-hidden rounded-sm bg-white text-black shadow-2xl"
           style={{ backgroundColor: "#ffffff", opacity: 1 }}
         >
           <form
@@ -584,7 +584,7 @@ export default function Shell({
           </form>
 
           <div
-            className="max-h-[70vh] overflow-y-auto bg-white px-4 pb-4 pt-3"
+            className="max-h-[70vh] overflow-y-auto bg-white px-3.5 pb-4 pt-3"
             style={{ backgroundColor: "#ffffff", opacity: 1 }}
           >
             <div className="mb-4">
@@ -603,7 +603,7 @@ export default function Shell({
               {recentViewedProducts.length === 0 ? (
                 <p className="text-sm text-black/50">No recently viewed items yet.</p>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-x-2.5 gap-y-3 sm:grid-cols-4">
                   {recentViewedProducts.map((p) => (
                     <button
                       key={`recent-${p.id}`}
@@ -614,10 +614,10 @@ export default function Shell({
                       <img
                         src={p.image}
                         alt={p.name}
-                        className="mb-1.5 h-40 w-full object-cover sm:h-44"
+                        className="mb-2 h-32 w-full object-cover sm:h-36"
                       />
-                      <p className="truncate text-[12px] uppercase">{p.name}</p>
-                      <p className="text-[12px] text-black/70">${formatMoney(p.priceCents)}</p>
+                      <p className="truncate text-[11px] uppercase tracking-[0.03em]">{p.name}</p>
+                      <p className="text-[11px] text-black/70">${formatMoney(p.priceCents)}</p>
                     </button>
                   ))}
                 </div>
@@ -632,7 +632,7 @@ export default function Shell({
               ) : filteredSearchProducts.length === 0 ? (
                 <p className="py-4 text-sm text-black/60">No results found.</p>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-x-2.5 gap-y-3 sm:grid-cols-4">
                   {filteredSearchProducts.map((p) => (
                     <button
                       key={p.id}
@@ -643,10 +643,10 @@ export default function Shell({
                       <img
                         src={p.image}
                         alt={p.name}
-                        className="mb-1.5 h-40 w-full object-cover sm:h-44"
+                        className="mb-2 h-32 w-full object-cover sm:h-36"
                       />
-                      <p className="truncate text-[12px] uppercase">{p.name}</p>
-                      <p className="text-[12px] text-black/70">${formatMoney(p.priceCents)}</p>
+                      <p className="truncate text-[11px] uppercase tracking-[0.03em]">{p.name}</p>
+                      <p className="text-[11px] text-black/70">${formatMoney(p.priceCents)}</p>
                     </button>
                   ))}
                 </div>
