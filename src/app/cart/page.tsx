@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatMoney, type Product } from "@/lib/products";
 import { reconcileCartQuantities, removeFromCart, setCartItemQty } from "@/lib/cart";
+import { ONE_OF_ONE_SIZE } from "@/lib/product-options";
 import { useCart } from "@/lib/useCart";
 
-type ProductLookup = Pick<Product, "id" | "name" | "image" | "priceCents" | "quantity">;
+type ProductLookup = Pick<Product, "id" | "name" | "image" | "priceCents" | "quantity" | "sizes">;
 
 export default function CartPage() {
   const { items, count } = useCart();
@@ -49,9 +50,19 @@ export default function CartPage() {
   const cartLines = useMemo(() => {
     return items.map((item) => {
       const product = productById.get(item.productId);
-      return { item, product };
+      const fallbackSize = product?.sizes.length === 1 ? product.sizes[0] : "";
+      const lineSize = item.size || fallbackSize || ONE_OF_ONE_SIZE;
+      const sizeValid = Boolean(product) && lineSize !== "" && Boolean(product?.sizes.includes(lineSize));
+      return { item, product, lineSize, sizeValid };
     });
   }, [items, productById]);
+
+  const cartQtyByProductId = useMemo(() => {
+    return items.reduce((map, item) => {
+      map.set(item.productId, (map.get(item.productId) ?? 0) + item.qty);
+      return map;
+    }, new Map<string, number>());
+  }, [items]);
 
   const subtotalCents = useMemo(() => {
     return cartLines.reduce((sum, line) => {
@@ -61,7 +72,7 @@ export default function CartPage() {
 
   const checkoutReady = useMemo(() => {
     if (!items.length || loadingProducts) return false;
-    return cartLines.every((line) => Boolean(line.product));
+    return cartLines.every((line) => Boolean(line.product) && line.sizeValid);
   }, [cartLines, items.length, loadingProducts]);
 
   async function startCheckout() {
@@ -75,7 +86,11 @@ export default function CartPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: items.map((item) => ({ productId: item.productId, qty: item.qty })),
+          items: cartLines.map((line) => ({
+            productId: line.item.productId,
+            size: line.lineSize,
+            qty: line.item.qty,
+          })),
         }),
       });
 
@@ -111,12 +126,15 @@ export default function CartPage() {
         ) : (
           <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_300px]">
             <div className="space-y-2.5">
-              {cartLines.map(({ item, product }) => {
-                const key = item.productId;
+              {cartLines.map(({ item, product, lineSize, sizeValid }) => {
+                const key = `${item.productId}:${item.size}`;
                 const lineTotalCents = (product?.priceCents ?? 0) * item.qty;
                 const maxQty = typeof product?.quantity === "number" ? Math.max(0, product.quantity) : undefined;
-                const atMax = typeof maxQty === "number" && item.qty >= maxQty;
-                const remainingQty = typeof maxQty === "number" ? Math.max(0, maxQty - item.qty) : undefined;
+                const totalInCartForProduct = cartQtyByProductId.get(item.productId) ?? item.qty;
+                const otherQty = Math.max(0, totalInCartForProduct - item.qty);
+                const maxLineQty = typeof maxQty === "number" ? Math.max(0, maxQty - otherQty) : undefined;
+                const atMax = typeof maxLineQty === "number" && item.qty >= maxLineQty;
+                const remainingQty = typeof maxQty === "number" ? Math.max(0, maxQty - totalInCartForProduct) : undefined;
 
                 return (
                   <div
@@ -134,6 +152,9 @@ export default function CartPage() {
                       <p className="truncate text-sm font-semibold uppercase text-white">
                         {product?.name || item.productId}
                       </p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.12em] text-white/70">
+                        Size: {sizeValid ? lineSize : "Size not selected"}
+                      </p>
                       <p className="mt-1 text-sm text-white/90">
                         ${formatMoney(product?.priceCents ?? 0)} each
                       </p>
@@ -148,7 +169,7 @@ export default function CartPage() {
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setCartItemQty(item.productId, item.qty - 1, maxQty)}
+                            onClick={() => setCartItemQty(item.productId, item.size, item.qty - 1, maxQty)}
                             className="homeBtn ghost text-sm tracking-[0.08em]" style={{ height: 32, minWidth: 36, padding: 0 }}
                             aria-label="Decrease quantity"
                           >
@@ -159,8 +180,8 @@ export default function CartPage() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => setCartItemQty(item.productId, item.qty + 1, maxQty)}
-                            disabled={atMax}
+                            onClick={() => setCartItemQty(item.productId, item.size, item.qty + 1, maxQty)}
+                            disabled={atMax || !sizeValid}
                             className="homeBtn ghost text-sm tracking-[0.08em]" style={{ height: 32, minWidth: 36, padding: 0 }}
                             aria-label="Increase quantity"
                           >
@@ -169,7 +190,7 @@ export default function CartPage() {
 
                           <button
                             type="button"
-                            onClick={() => removeFromCart(item.productId)}
+                            onClick={() => removeFromCart(item.productId, item.size)}
                             className="homeBtn ghost ml-1 text-[11px] tracking-[0.1em]" style={{ height: 32, padding: "0 12px" }}
                           >
                             Remove
@@ -218,7 +239,7 @@ export default function CartPage() {
               ) : null}
               {!loadingProducts && !checkoutReady ? (
                 <p className="mt-2 text-xs text-red-200">
-                  One or more cart items are no longer available. Refresh the cart before checkout.
+                  One or more cart items are unavailable or missing a valid size. Remove and re-add them before checkout.
                 </p>
               ) : null}
               {checkoutError ? (

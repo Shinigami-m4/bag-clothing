@@ -4,14 +4,25 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import { artistConfig, type ArtistId } from "@/lib/artists";
 import { formatMoney } from "@/lib/products";
+import {
+  getCategoryLabel,
+  getCategorySizeOptions,
+  getDefaultSizesForCategory,
+  ONE_OF_ONE_SIZE,
+  PRODUCT_CATEGORY_VALUES,
+  sortProductSizes,
+  type ProductCategory,
+} from "@/lib/product-options";
 import { buildPortfolioAssetPath, buildProductAssetPath } from "@/lib/uploadPaths";
 
 type InventoryItem = {
   id: string;
   name: string;
   artist: ArtistId;
+  category: ProductCategory;
   priceCents: number;
   image: string;
+  sizes: string[];
   description?: string;
   quantity: number;
   images?: string[];
@@ -44,6 +55,11 @@ function parseOptionalWhole(raw: string): number | null {
   const num = Number(value);
   if (!Number.isFinite(num) || num < 0) return null;
   return Math.floor(num);
+}
+
+function normalizeAdminSizes(sizes: string[], category: ProductCategory) {
+  if (sizes.includes(ONE_OF_ONE_SIZE)) return [ONE_OF_ONE_SIZE];
+  return sortProductSizes(sizes, category);
 }
 
 function readImageFiles(fileList: FileList | null) {
@@ -84,6 +100,8 @@ export default function AdminPage() {
   const [id, setId] = useState("");
   const [name, setName] = useState("");
   const [artist, setArtist] = useState<ArtistId>(ARTIST_OPTIONS[0]);
+  const [category, setCategory] = useState<ProductCategory>("other");
+  const [sizes, setSizes] = useState<string[]>(() => getDefaultSizesForCategory("other"));
   const [priceUsd, setPriceUsd] = useState("");
   const [description, setDescription] = useState("");
   const [quantityText, setQuantityText] = useState("");
@@ -138,6 +156,8 @@ export default function AdminPage() {
       ),
     [portfolioItems]
   );
+  const categorySizeOptions = useMemo(() => getCategorySizeOptions(category), [category]);
+  const oneOfOneSelected = sizes.includes(ONE_OF_ONE_SIZE);
 
   function redirectToAdminLogin() {
     window.location.href = "/?gate=1&intent=admin&next=/admin";
@@ -171,10 +191,32 @@ export default function AdminPage() {
     }
   }
 
+  function handleCategoryChange(nextCategory: ProductCategory) {
+    setCategory(nextCategory);
+    setSizes(getDefaultSizesForCategory(nextCategory));
+  }
+
+  function toggleSize(size: string) {
+    setSizes((current) => {
+      if (size === ONE_OF_ONE_SIZE) {
+        return current.includes(ONE_OF_ONE_SIZE) ? getDefaultSizesForCategory(category) : [ONE_OF_ONE_SIZE];
+      }
+
+      const withoutOneOfOne = current.filter((entry) => entry !== ONE_OF_ONE_SIZE);
+      const next = withoutOneOfOne.includes(size)
+        ? withoutOneOfOne.filter((entry) => entry !== size)
+        : [...withoutOneOfOne, size];
+
+      return normalizeAdminSizes(next, category);
+    });
+  }
+
   function resetInventoryForm() {
     setId("");
     setName("");
     setArtist(ARTIST_OPTIONS[0]);
+    setCategory("other");
+    setSizes(getDefaultSizesForCategory("other"));
     setPriceUsd("");
     setDescription("");
     setQuantityText("");
@@ -189,6 +231,8 @@ export default function AdminPage() {
     setId(item.id);
     setName(item.name);
     setArtist(item.artist);
+    setCategory(item.category);
+    setSizes(normalizeAdminSizes(item.sizes ?? [], item.category));
     setPriceUsd(item.priceCents > 0 ? (item.priceCents / 100).toString() : "");
     setDescription(item.description || "");
     setQuantityText(String(item.quantity ?? 0));
@@ -218,6 +262,11 @@ export default function AdminPage() {
         throw new Error("Quantity must be a whole number (0 or higher).");
       }
 
+      const selectedSizes = normalizeAdminSizes(sizes, category);
+      if (!selectedSizes.length) {
+        throw new Error("Select at least one size for this category or choose 1 of 1.");
+      }
+
       const productId = id.trim();
       let uploaded: string[] = [];
       if (files.length > 0) {
@@ -238,7 +287,9 @@ export default function AdminPage() {
           id: productId,
           name: name.trim(),
           artist,
+          category,
           priceCents,
+          sizes: selectedSizes,
           description,
           quantity,
           isPublished,
@@ -464,8 +515,8 @@ export default function AdminPage() {
           </button>
         </div>
         <p className="mt-1 text-sm text-white/80">
-          One-of-one handmade pieces no longer need a size field. Use the description box for fit,
-          materials, or one-off details.
+          Assign every product a category first, then use the size list for that category. Choose
+          <b> 1 of 1</b> when the piece is a unique one-off instead of a standard size run.
         </p>
         <p className="mt-1 text-sm text-white/80">
           Products only appear on the live site when <b>Live on Website</b> is turned on. Any live
@@ -523,6 +574,21 @@ export default function AdminPage() {
           </label>
 
           <label className="grid gap-1">
+            <span className="text-xs uppercase tracking-[0.12em] text-white/80">Category</span>
+            <select
+              className="rounded border border-white/30 bg-white px-3 py-2 text-black"
+              value={category}
+              onChange={(e) => handleCategoryChange(e.target.value as ProductCategory)}
+            >
+              {PRODUCT_CATEGORY_VALUES.map((value) => (
+                <option key={value} value={value}>
+                  {getCategoryLabel(value)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="grid gap-1">
             <span className="text-xs uppercase tracking-[0.12em] text-white/80">Price (USD)</span>
             <input
               className="rounded border border-white/30 bg-white px-3 py-2 text-black"
@@ -533,6 +599,43 @@ export default function AdminPage() {
             />
             <span className="text-xs text-white/65">Example: 70 means $70.00.</span>
           </label>
+
+          <div className="grid gap-2 rounded border border-white/20 bg-white/5 px-3 py-3 lg:col-span-2">
+            <div className="grid gap-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-white/80">Sizes</span>
+              <span className="text-xs text-white/65">
+                Sizes update from the selected category. Choose 1 of 1 for one-off pieces.
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {categorySizeOptions.map((size) => {
+                const selected = sizes.includes(size);
+                const disabled = oneOfOneSelected && size !== ONE_OF_ONE_SIZE;
+
+                return (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => toggleSize(size)}
+                    disabled={disabled}
+                    className={`rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] transition ${
+                      selected
+                        ? "border-white bg-white text-black"
+                        : "border-white/35 bg-transparent text-white"
+                    } disabled:cursor-not-allowed disabled:opacity-45`}
+                    style={selected ? { color: "#000", WebkitTextFillColor: "#000" } : undefined}
+                  >
+                    {size}
+                  </button>
+                );
+              })}
+            </div>
+
+            <span className="text-xs text-white/65">
+              Selected: {sizes.length ? sizes.join(", ") : "None"}
+            </span>
+          </div>
 
           <label className="grid gap-1 lg:col-span-2">
             <span className="text-xs uppercase tracking-[0.12em] text-white/80">Description / Fit Notes</span>
@@ -695,8 +798,10 @@ export default function AdminPage() {
                         </span>
                       </div>
                       <div className="mt-1 text-xs text-black/70">
-                        ID: {x.id} | Artist: {x.artist} | Price: ${formatMoney(x.priceCents)} | Qty: {x.quantity}
+                        ID: {x.id} | Artist: {x.artist} | Category: {getCategoryLabel(x.category)} | Price: $
+                        {formatMoney(x.priceCents)} | Qty: {x.quantity}
                       </div>
+                      <div className="mt-1 text-xs text-black/70">Sizes: {x.sizes?.join(", ") || "1 of 1"}</div>
                       <div className="mt-1 text-xs text-black/70">{x.description || "No description"}</div>
                     </div>
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[172px]">

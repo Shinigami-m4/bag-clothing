@@ -1,4 +1,10 @@
 import type { Product } from "@/lib/products";
+import {
+  getCategoryLabel,
+  isProductCategory,
+  PRODUCT_CATEGORY_VALUES,
+  type ProductCategory,
+} from "@/lib/product-options";
 
 export const SORT_VALUES = ["featured", "price-asc", "price-desc", "name-asc", "name-desc"] as const;
 
@@ -35,6 +41,7 @@ export function filterProductsByQuery(products: Product[], query: string) {
       product.name,
       product.id,
       product.artist,
+      product.category,
       product.description ?? "",
       ...(product.sizes ?? []),
     ]
@@ -43,6 +50,49 @@ export function filterProductsByQuery(products: Product[], query: string) {
 
     return haystack.includes(q);
   });
+}
+
+export function normalizeCategoryParam(value: string | undefined) {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  return isProductCategory(normalized) ? normalized : undefined;
+}
+
+export function normalizeSizeParam(value: string | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+export function filterProductsByCategory(products: Product[], category?: ProductCategory) {
+  if (!category) return products;
+  return products.filter((product) => product.category === category);
+}
+
+export function filterProductsBySize(products: Product[], size?: string) {
+  if (!size) return products;
+  return products.filter((product) => product.sizes?.includes(size));
+}
+
+export function collectCategoryOptions(products: Product[]) {
+  const categories = new Set(products.map((product) => product.category));
+
+  return PRODUCT_CATEGORY_VALUES.filter((value) => categories.has(value)).map((value) => ({
+    value,
+    label: getCategoryLabel(value),
+  }));
+}
+
+export function collectSizeOptions(products: Product[]) {
+  const sizes = new Set<string>();
+
+  for (const product of products) {
+    for (const size of product.sizes ?? []) {
+      const normalized = size.trim();
+      if (normalized) sizes.add(normalized);
+    }
+  }
+
+  return [...sizes];
 }
 
 export function filterAndSortProducts(

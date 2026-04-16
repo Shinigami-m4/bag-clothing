@@ -1,5 +1,9 @@
 import { artistConfig, type ArtistId } from "@/lib/artists";
 import { products, type Product } from "@/lib/products";
+import {
+  normalizeProductCategory,
+  normalizeProductSizes,
+} from "@/lib/product-options";
 import { readJsonStore, savePublicUpload, writeJsonStore } from "@/lib/storage.server";
 import { buildProductAssetPath } from "@/lib/uploadPaths";
 
@@ -15,22 +19,6 @@ const inventoryStorePath = "inventory.json";
 function toArtistId(value: unknown): ArtistId | null {
   if (typeof value !== "string") return null;
   return value in artistConfig ? (value as ArtistId) : null;
-}
-
-function normalizeSizes(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .filter((v): v is string => typeof v === "string")
-      .map((v) => v.trim())
-      .filter(Boolean);
-  }
-  if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean);
-  }
-  return [];
 }
 
 function normalizeQuantity(value: unknown) {
@@ -64,14 +52,14 @@ function normalizeInventoryItem(raw: unknown): InventoryProduct | null {
 
   const artist = toArtistId(item.artist);
   if (!artist) return null;
-
-  const sizes = normalizeSizes(item.sizes);
-  if (sizes.length === 0) sizes.push("One of One");
+  const category = normalizeProductCategory(item.category, `${item.id} ${item.name}`);
+  const sizes = normalizeProductSizes(item.sizes, category);
 
   return {
     id: item.id.trim(),
     name: item.name.trim(),
     artist,
+    category,
     image: item.image.trim(),
     priceCents: normalizePrice(item.priceCents),
     sizes,
@@ -170,7 +158,7 @@ export async function decrementInventoryProductQuantities(lines: Array<{ product
 
     next.unshift({
       ...seeded,
-      sizes: seeded.sizes?.length ? seeded.sizes : ["One of One"],
+      sizes: normalizeProductSizes(seeded.sizes, seeded.category),
       quantity: Math.max(0, (seeded.quantity ?? 0) - qty),
       isPublished: typeof seeded.isPublished === "boolean" ? seeded.isPublished : true,
     });

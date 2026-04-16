@@ -7,19 +7,13 @@ import {
   upsertInventoryProduct,
   type InventoryProduct,
 } from "@/lib/inventory.server";
-
-function parseSizes(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    const sizes = value.map((v) => String(v).trim()).filter(Boolean);
-    return sizes.length ? sizes : ["One of One"];
-  }
-  const raw = String(value ?? "");
-  const sizes = raw
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean);
-  return sizes.length ? sizes : ["One of One"];
-}
+import {
+  getDefaultSizesForCategory,
+  isProductCategory,
+  normalizeProductCategory,
+  normalizeProductSizes,
+  type ProductCategory,
+} from "@/lib/product-options";
 
 function toInt(value: unknown, fallback = 0) {
   const n = Number(value);
@@ -29,6 +23,17 @@ function toInt(value: unknown, fallback = 0) {
 
 function isArtistId(input: string): input is keyof typeof artistConfig {
   return input in artistConfig;
+}
+
+function parseCategory(
+  value: unknown,
+  fallback: ProductCategory | undefined,
+  hint: string
+): ProductCategory {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (isProductCategory(normalized)) return normalized;
+  if (fallback) return fallback;
+  return normalizeProductCategory(value, hint);
 }
 
 function required(value: unknown, field: string) {
@@ -68,6 +73,7 @@ export async function POST(req: Request) {
       }
 
       const existing = (await readInventory()).find((x) => x.id === id);
+      const category = parseCategory(form.get("category"), existing?.category, `${id} ${name}`);
       const files = form
         .getAll("assets")
         .filter((f): f is File => f instanceof File && f.size > 0);
@@ -82,8 +88,11 @@ export async function POST(req: Request) {
         id,
         name,
         artist,
+        category,
         priceCents: toInt(form.get("priceCents"), existing?.priceCents ?? 0),
-        sizes: form.has("sizes") ? parseSizes(form.get("sizes")) : existing?.sizes ?? ["One of One"],
+        sizes: form.has("sizes")
+          ? normalizeProductSizes(form.getAll("sizes"), category)
+          : existing?.sizes ?? getDefaultSizesForCategory(category),
         description: String(form.get("description") || "").trim() || undefined,
         quantity: toInt(form.get("quantity"), existing?.quantity ?? 0),
         isPublished: toPublished(form.get("isPublished"), existing?.isPublished ?? false),
@@ -104,17 +113,19 @@ export async function POST(req: Request) {
     }
 
     const existing = (await readInventory()).find((x) => x.id === id);
+    const category = parseCategory(body?.category, existing?.category, `${id} ${name}`);
 
     const item: InventoryProduct = {
       id,
       name,
       artist,
+      category,
       image: required(String(body?.image || existing?.image || ""), "image"),
       priceCents: toInt(body?.priceCents, existing?.priceCents ?? 0),
       sizes:
         body && Object.hasOwn(body, "sizes")
-          ? parseSizes(body?.sizes)
-          : existing?.sizes ?? ["One of One"],
+          ? normalizeProductSizes(body?.sizes, category)
+          : existing?.sizes ?? getDefaultSizesForCategory(category),
       description:
         body && Object.hasOwn(body, "description")
           ? String(body?.description || "").trim() || undefined

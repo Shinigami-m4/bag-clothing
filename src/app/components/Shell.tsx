@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type ProductSummary = Pick<
   Product,
-  "id" | "name" | "image" | "priceCents" | "artist" | "description" | "sizes"
+  "id" | "name" | "image" | "priceCents" | "artist" | "category" | "description" | "sizes"
 >;
 
 const SEARCH_RECENT_KEY = "bag_recently_viewed_v1";
@@ -267,7 +267,7 @@ export default function Shell({
 
     return allProducts
       .filter((p) => {
-        const haystack = [p.name, p.id, p.artist, p.description ?? "", ...(p.sizes ?? [])]
+        const haystack = [p.name, p.id, p.artist, p.category, p.description ?? "", ...(p.sizes ?? [])]
           .join(" ")
           .toLowerCase();
         return haystack.includes(q);

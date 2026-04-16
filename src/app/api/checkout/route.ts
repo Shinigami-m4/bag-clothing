@@ -1,8 +1,9 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { findLiveProductById } from "@/lib/inventory.server";
+import { ONE_OF_ONE_SIZE } from "@/lib/product-options";
 
-type CartItem = { productId: string; qty: number };
+type CartItem = { productId: string; size?: string; qty: number };
 
 function getStripeClient() {
   const apiKey = process.env.STRIPE_SECRET_KEY;
@@ -31,6 +32,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "One or more products are no longer available." }, { status: 400 });
     }
 
+    const requestedSize = typeof it.size === "string" ? it.size.trim() : "";
+    const resolvedSize =
+      requestedSize || (p.sizes.length === 1 ? p.sizes[0] : "");
+
+    if (!resolvedSize || !p.sizes.includes(resolvedSize)) {
+      return NextResponse.json(
+        { error: `${p.name} requires a valid size selection before checkout.` },
+        { status: 400 }
+      );
+    }
+
     const qty = Math.max(1, Math.min(99, it.qty));
     if (typeof p.quantity === "number" && qty > p.quantity) {
       return NextResponse.json(
@@ -45,12 +57,12 @@ export async function POST(req: Request) {
         currency: "usd",
         unit_amount: p.priceCents,
         product_data: {
-          name: p.name,
+          name: `${p.name} - ${resolvedSize || ONE_OF_ONE_SIZE}`,
         },
       },
     });
 
-    sanitizedItems.push({ productId: p.id, qty });
+    sanitizedItems.push({ productId: p.id, size: resolvedSize, qty });
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;

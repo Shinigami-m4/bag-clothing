@@ -1,8 +1,10 @@
 import type { ArtistId } from "./artists";
+import type { ProductCategory } from "./product-options";
 
 export type Product = {
   id: string;
   artist: ArtistId;
+  category: ProductCategory;
   name: string;
   image: string;
   priceCents: number;

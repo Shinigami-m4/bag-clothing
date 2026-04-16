@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { addToCart, getCartItemQty, reconcileCartQuantities } from "@/lib/cart";
 import { formatMoney, type Product } from "@/lib/products";
+import { getCategoryLabel, ONE_OF_ONE_SIZE } from "@/lib/product-options";
 import { useCart } from "@/lib/useCart";
 import ZoomableLightboxImage from "@/app/components/ZoomableLightboxImage";
 
@@ -12,6 +13,8 @@ export default function ProductCard({ p }: { p: Product }) {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [imageIndex, setImageIndex] = useState(0);
   const { items } = useCart();
+  const defaultSize = p.sizes?.find((size) => size.trim()) || ONE_OF_ONE_SIZE;
+  const [selectedSize, setSelectedSize] = useState(defaultSize);
 
   const gallery = useMemo(() => {
     const images = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
@@ -19,14 +22,15 @@ export default function ProductCard({ p }: { p: Product }) {
   }, [p.image, p.images]);
 
   const totalStock = typeof p.quantity === "number" ? Math.max(0, p.quantity) : undefined;
-  const inCartQty = useMemo(
-    () => items.find((item) => item.productId === p.id)?.qty ?? getCartItemQty(p.id),
-    [items, p.id]
-  );
+  const inCartQty = useMemo(() => getCartItemQty(p.id), [items, p.id]);
+  const selectedSizeQty = useMemo(() => getCartItemQty(p.id, selectedSize), [items, p.id, selectedSize]);
   const remainingQty = typeof totalStock === "number" ? Math.max(0, totalStock - inCartQty) : undefined;
   const soldOut = typeof totalStock === "number" && totalStock <= 0;
   const maxInCart = typeof remainingQty === "number" && remainingQty <= 0;
   const hasImageStrip = gallery.length > 1;
+  const hasMultipleSizes = (p.sizes?.length ?? 0) > 1;
+  const categoryLabel = getCategoryLabel(p.category);
+  const sizeLabel = p.sizes?.length ? p.sizes.join(", ") : "1 of 1";
 
   function flashAdded() {
     setAdded(true);
@@ -35,7 +39,7 @@ export default function ProductCard({ p }: { p: Product }) {
 
   function handleAddToCart() {
     if (soldOut || maxInCart) return;
-    addToCart(p, 1);
+    addToCart(p, selectedSize, 1);
     flashAdded();
   }
 
@@ -73,6 +77,10 @@ export default function ProductCard({ p }: { p: Product }) {
       reconcileCartQuantities([{ id: p.id, quantity: p.quantity }]);
     }
   }, [p.id, p.quantity]);
+
+  useEffect(() => {
+    setSelectedSize(defaultSize);
+  }, [defaultSize, p.id]);
 
   useEffect(() => {
     if (!viewerOpen) return;
@@ -129,6 +137,15 @@ export default function ProductCard({ p }: { p: Product }) {
             </div>
 
             <div style={{ opacity: 0.85 }}>${formatMoney(p.priceCents)}</div>
+            <p style={{ margin: 0, opacity: 0.7, fontSize: 12, letterSpacing: "0.08em" }}>
+              CATEGORY: {categoryLabel.toUpperCase()}
+            </p>
+            <p style={{ margin: 0, opacity: 0.72, fontSize: 13 }}>Sizes: {sizeLabel}</p>
+            {hasMultipleSizes ? (
+              <p style={{ margin: 0, opacity: 0.7, fontSize: 12 }}>
+                Selected size: {selectedSize} {selectedSizeQty > 0 ? `(${selectedSizeQty} in cart)` : ""}
+              </p>
+            ) : null}
 
             {p.description ? (
               <p style={{ minHeight: 44, margin: 0, opacity: 0.8, fontSize: 14, lineHeight: 1.5 }}>
@@ -160,6 +177,32 @@ export default function ProductCard({ p }: { p: Product }) {
         </button>
 
         <div style={{ padding: "0 14px 14px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <label style={{ display: "grid", gap: 6, minWidth: 140 }}>
+            <span style={{ fontSize: 11, letterSpacing: "0.08em", opacity: 0.72, textTransform: "uppercase" }}>
+              Size
+            </span>
+            <select
+              value={selectedSize}
+              onChange={(event) => setSelectedSize(event.target.value)}
+              disabled={!p.sizes?.length}
+              style={{
+                minHeight: 38,
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.25)",
+                background: "rgba(255,255,255,0.08)",
+                color: "#fff",
+                padding: "0 14px",
+                outline: "none",
+              }}
+            >
+              {(p.sizes?.length ? p.sizes : [ONE_OF_ONE_SIZE]).map((size) => (
+                <option key={size} value={size} style={{ color: "#000" }}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <button
             type="button"
             onClick={handleAddToCart}
@@ -232,6 +275,14 @@ export default function ProductCard({ p }: { p: Product }) {
                   ${formatMoney(p.priceCents)}
                   {typeof totalStock === "number" ? ` • Available now: ${remainingQty}` : ""}
                 </p>
+                <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.62)", fontSize: 13 }}>
+                  Category: {categoryLabel} | Sizes: {sizeLabel}
+                </p>
+                {hasMultipleSizes ? (
+                  <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.62)", fontSize: 13 }}>
+                    Selected size: {selectedSize} {selectedSizeQty > 0 ? `| ${selectedSizeQty} in cart` : ""}
+                  </p>
+                ) : null}
                 {typeof totalStock === "number" ? (
                   <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.62)", fontSize: 13 }}>
                     In your cart: {inCartQty} / {totalStock}
@@ -386,7 +437,33 @@ export default function ProductCard({ p }: { p: Product }) {
               </div>
             ) : null}
 
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <label style={{ display: "grid", gap: 6, minWidth: 160 }}>
+                <span style={{ fontSize: 11, letterSpacing: "0.08em", opacity: 0.72, textTransform: "uppercase" }}>
+                  Size
+                </span>
+                <select
+                  value={selectedSize}
+                  onChange={(event) => setSelectedSize(event.target.value)}
+                  disabled={!p.sizes?.length}
+                  style={{
+                    minHeight: 40,
+                    borderRadius: 999,
+                    border: "1px solid rgba(255,255,255,0.25)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "#fff",
+                    padding: "0 14px",
+                    outline: "none",
+                  }}
+                >
+                  {(p.sizes?.length ? p.sizes : [ONE_OF_ONE_SIZE]).map((size) => (
+                    <option key={size} value={size} style={{ color: "#000" }}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <button
                 type="button"
                 onClick={handleAddToCart}

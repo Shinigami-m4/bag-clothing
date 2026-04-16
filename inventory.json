@@ -3,10 +3,11 @@
     "id": "yearn---",
     "name": "Beanie",
     "artist": "yearn",
+    "category": "hat",
     "image": "/uploads/yearn-/IMG_3409.jpeg",
     "priceCents": 5000,
     "sizes": [
-      "One of One"
+      "One Size"
     ],
     "description": "one size",
     "quantity": 2,
@@ -20,10 +21,11 @@
     "id": "doom1",
     "name": "jacket",
     "artist": "doom",
+    "category": "outerwear",
     "image": "/uploads/Doom1/IMG_3414.jpeg",
     "priceCents": 8000,
     "sizes": [
-      "One of One"
+      "1 of 1"
     ],
     "description": "xxxxx",
     "quantity": 1,

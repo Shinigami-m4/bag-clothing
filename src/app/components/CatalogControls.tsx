@@ -2,9 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { getCategoryLabel } from "@/lib/product-options";
 
 type CatalogControlsProps = {
   selectedSort: string;
+  selectedCategory: string;
+  selectedSize: string;
+  categoryOptions: Array<{ value: string; label: string }>;
+  sizeOptions: string[];
   minPrice: string;
   maxPrice: string;
   maxAvailablePrice: string;
@@ -39,6 +44,10 @@ function moneyLabel(value: string) {
 
 export default function CatalogControls({
   selectedSort,
+  selectedCategory,
+  selectedSize,
+  categoryOptions,
+  sizeOptions,
   minPrice,
   maxPrice,
   maxAvailablePrice,
@@ -48,11 +57,16 @@ export default function CatalogControls({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [openPanel, setOpenPanel] = useState<"sort" | "price" | null>(null);
+  const [openPanel, setOpenPanel] = useState<"sort" | "price" | "category" | "size" | null>(null);
   const [draftMinPrice, setDraftMinPrice] = useState(minPrice);
   const [draftMaxPrice, setDraftMaxPrice] = useState(maxPrice);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setDraftMinPrice(minPrice);
+    setDraftMaxPrice(maxPrice);
+  }, [minPrice, maxPrice]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -93,6 +107,19 @@ export default function CatalogControls({
     setOpenPanel(null);
   }
 
+  function applyCategory(value: string | null) {
+    navigateWithParams({
+      category: value,
+      size: null,
+    });
+    setOpenPanel(null);
+  }
+
+  function applySize(value: string | null) {
+    navigateWithParams({ size: value });
+    setOpenPanel(null);
+  }
+
   function applyPrice() {
     let nextMin = normalizePriceInput(draftMinPrice);
     let nextMax = normalizePriceInput(draftMaxPrice);
@@ -119,12 +146,14 @@ export default function CatalogControls({
   function resetFilters() {
     setDraftMinPrice("");
     setDraftMaxPrice("");
-    navigateWithParams({ minPrice: null, maxPrice: null, sort: null });
+    navigateWithParams({ minPrice: null, maxPrice: null, sort: null, category: null, size: null });
     setOpenPanel(null);
   }
 
   const activeSortLabel =
     SORT_OPTIONS.find((option) => option.value === selectedSort)?.label ?? SORT_OPTIONS[0].label;
+  const categorySummary = selectedCategory ? getCategoryLabel(selectedCategory) : "Any";
+  const sizeSummary = selectedSize || "Any";
 
   const priceSummary = useMemo(() => {
     if (!minPrice && !maxPrice) return "Any";
@@ -134,11 +163,100 @@ export default function CatalogControls({
   }, [minPrice, maxPrice]);
 
   const hasPriceFilter = Boolean(minPrice || maxPrice);
-  const hasActiveFilters = hasPriceFilter || selectedSort !== "featured";
+  const hasActiveFilters =
+    hasPriceFilter || selectedSort !== "featured" || Boolean(selectedCategory) || Boolean(selectedSize);
 
   return (
     <div className="catalogToolbar" ref={rootRef}>
       <div className="catalogControls">
+        <div className={`catalogControl ${openPanel === "category" ? "catalogControlOpen" : ""}`}>
+          <button
+            type="button"
+            className="catalogSummary"
+            aria-haspopup="menu"
+            aria-expanded={openPanel === "category"}
+            onClick={() => setOpenPanel((current) => (current === "category" ? null : "category"))}
+          >
+            <span>Category</span>
+            <span className="catalogSummaryValue">{categorySummary}</span>
+            <span className="catalogCaret">^</span>
+          </button>
+
+          {openPanel === "category" && (
+            <div className="catalogPanel" role="menu" aria-label="Category filter">
+              <div className="catalogOptionList">
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={!selectedCategory}
+                  className={`catalogOption ${!selectedCategory ? "catalogOptionActive" : ""}`}
+                  onClick={() => applyCategory(null)}
+                >
+                  <span>Any</span>
+                  <span className="catalogOptionCheck">{!selectedCategory ? "âœ“" : ""}</span>
+                </button>
+                {categoryOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={selectedCategory === option.value}
+                    className={`catalogOption ${selectedCategory === option.value ? "catalogOptionActive" : ""}`}
+                    onClick={() => applyCategory(option.value)}
+                  >
+                    <span>{option.label}</span>
+                    <span className="catalogOptionCheck">{selectedCategory === option.value ? "âœ“" : ""}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={`catalogControl ${openPanel === "size" ? "catalogControlOpen" : ""}`}>
+          <button
+            type="button"
+            className="catalogSummary"
+            aria-haspopup="menu"
+            aria-expanded={openPanel === "size"}
+            onClick={() => setOpenPanel((current) => (current === "size" ? null : "size"))}
+          >
+            <span>Size</span>
+            <span className="catalogSummaryValue">{sizeSummary}</span>
+            <span className="catalogCaret">^</span>
+          </button>
+
+          {openPanel === "size" && (
+            <div className="catalogPanel" role="menu" aria-label="Size filter">
+              <div className="catalogOptionList">
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={!selectedSize}
+                  className={`catalogOption ${!selectedSize ? "catalogOptionActive" : ""}`}
+                  onClick={() => applySize(null)}
+                >
+                  <span>Any</span>
+                  <span className="catalogOptionCheck">{!selectedSize ? "âœ“" : ""}</span>
+                </button>
+                {sizeOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={selectedSize === option}
+                    className={`catalogOption ${selectedSize === option ? "catalogOptionActive" : ""}`}
+                    onClick={() => applySize(option)}
+                  >
+                    <span>{option}</span>
+                    <span className="catalogOptionCheck">{selectedSize === option ? "âœ“" : ""}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className={`catalogControl ${openPanel === "price" ? "catalogControlOpen" : ""}`}>
           <button
             type="button"
