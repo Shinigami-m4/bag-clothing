@@ -43,12 +43,6 @@ export default function ContactPage() {
           <b>Monteitdaniel1@gmail.com</b>
         </a>
       </div>
-      <div>
-        Bunch:{" "}
-        <a href="mailto:Jaytaylormaiyd@gmail.com" style={linkStyle}>
-          <b>Jaytaylormaiyd@gmail.com</b>
-        </a>
-      </div>
     </div>
   );
 }
