@@ -5,9 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { formatMoney, type Product } from "@/lib/products";
 import { reconcileCartQuantities, removeFromCart, setCartItemQty } from "@/lib/cart";
 import { ONE_OF_ONE_SIZE } from "@/lib/product-options";
+import { getProductSizeQuantity } from "@/lib/product-stock";
 import { useCart } from "@/lib/useCart";
 
-type ProductLookup = Pick<Product, "id" | "name" | "image" | "priceCents" | "quantity" | "sizes">;
+type ProductLookup = Pick<
+  Product,
+  "id" | "name" | "image" | "priceCents" | "quantity" | "sizes" | "sizeQuantities"
+>;
 
 export default function CartPage() {
   const { items, count } = useCart();
@@ -44,7 +48,7 @@ export default function CartPage() {
   }, []);
 
   const productById = useMemo(() => {
-    return new Map(allProducts.map((p) => [p.id, p]));
+    return new Map(allProducts.map((product) => [product.id, product]));
   }, [allProducts]);
 
   const cartLines = useMemo(() => {
@@ -57,17 +61,8 @@ export default function CartPage() {
     });
   }, [items, productById]);
 
-  const cartQtyByProductId = useMemo(() => {
-    return items.reduce((map, item) => {
-      map.set(item.productId, (map.get(item.productId) ?? 0) + item.qty);
-      return map;
-    }, new Map<string, number>());
-  }, [items]);
-
   const subtotalCents = useMemo(() => {
-    return cartLines.reduce((sum, line) => {
-      return sum + (line.product?.priceCents ?? 0) * line.item.qty;
-    }, 0);
+    return cartLines.reduce((sum, line) => sum + (line.product?.priceCents ?? 0) * line.item.qty, 0);
   }, [cartLines]);
 
   const checkoutReady = useMemo(() => {
@@ -129,20 +124,14 @@ export default function CartPage() {
               {cartLines.map(({ item, product, lineSize, sizeValid }) => {
                 const key = `${item.productId}:${item.size}`;
                 const lineTotalCents = (product?.priceCents ?? 0) * item.qty;
-                const maxQty = typeof product?.quantity === "number" ? Math.max(0, product.quantity) : undefined;
-                const totalInCartForProduct = cartQtyByProductId.get(item.productId) ?? item.qty;
-                const otherQty = Math.max(0, totalInCartForProduct - item.qty);
-                const maxLineQty = typeof maxQty === "number" ? Math.max(0, maxQty - otherQty) : undefined;
-                const atMax = typeof maxLineQty === "number" && item.qty >= maxLineQty;
-                const remainingQty = typeof maxQty === "number" ? Math.max(0, maxQty - totalInCartForProduct) : undefined;
+                const maxQty = product ? getProductSizeQuantity(product, lineSize) : undefined;
+                const atMax = typeof maxQty === "number" && item.qty >= maxQty;
+                const remainingQty = typeof maxQty === "number" ? Math.max(0, maxQty - item.qty) : undefined;
 
                 return (
-                  <div
-                    key={key}
-                    className="flex items-start rounded-md bg-black/55 p-3"
-                  >
+                  <div key={key} className="flex items-start rounded-md bg-black/55 p-3">
                     <img
-                        src={product?.image || "/brand/logo.PNG"}
+                      src={product?.image || "/brand/logo.PNG"}
                       alt={product?.name || item.productId}
                       className="shrink-0 rounded object-cover"
                       style={{ width: 82, height: 110, marginRight: 22 }}
@@ -155,13 +144,11 @@ export default function CartPage() {
                       <p className="mt-1 text-xs uppercase tracking-[0.12em] text-white/70">
                         Size: {sizeValid ? lineSize : "Size not selected"}
                       </p>
-                      <p className="mt-1 text-sm text-white/90">
-                        ${formatMoney(product?.priceCents ?? 0)} each
-                      </p>
+                      <p className="mt-1 text-sm text-white/90">${formatMoney(product?.priceCents ?? 0)} each</p>
                       {typeof maxQty === "number" ? (
                         <p className="mt-1 text-xs text-white/65">
-                          In your cart: {item.qty} / {maxQty}
-                          {remainingQty === 0 ? " • max reached" : ` • ${remainingQty} left`}
+                          This size: {item.qty} / {maxQty}
+                          {remainingQty === 0 ? " | max reached" : ` | ${remainingQty} left`}
                         </p>
                       ) : null}
 
@@ -170,19 +157,19 @@ export default function CartPage() {
                           <button
                             type="button"
                             onClick={() => setCartItemQty(item.productId, item.size, item.qty - 1, maxQty)}
-                            className="homeBtn ghost text-sm tracking-[0.08em]" style={{ height: 32, minWidth: 36, padding: 0 }}
+                            className="homeBtn ghost text-sm tracking-[0.08em]"
+                            style={{ height: 32, minWidth: 36, padding: 0 }}
                             aria-label="Decrease quantity"
                           >
                             -
                           </button>
-                          <span className="min-w-7 text-center text-sm font-semibold text-white">
-                            {item.qty}
-                          </span>
+                          <span className="min-w-7 text-center text-sm font-semibold text-white">{item.qty}</span>
                           <button
                             type="button"
                             onClick={() => setCartItemQty(item.productId, item.size, item.qty + 1, maxQty)}
                             disabled={atMax || !sizeValid}
-                            className="homeBtn ghost text-sm tracking-[0.08em]" style={{ height: 32, minWidth: 36, padding: 0 }}
+                            className="homeBtn ghost text-sm tracking-[0.08em]"
+                            style={{ height: 32, minWidth: 36, padding: 0 }}
                             aria-label="Increase quantity"
                           >
                             +
@@ -191,15 +178,14 @@ export default function CartPage() {
                           <button
                             type="button"
                             onClick={() => removeFromCart(item.productId, item.size)}
-                            className="homeBtn ghost ml-1 text-[11px] tracking-[0.1em]" style={{ height: 32, padding: "0 12px" }}
+                            className="homeBtn ghost ml-1 text-[11px] tracking-[0.1em]"
+                            style={{ height: 32, padding: "0 12px" }}
                           >
                             Remove
                           </button>
                         </div>
 
-                        <p className="text-sm font-semibold text-white">
-                          ${formatMoney(lineTotalCents)}
-                        </p>
+                        <p className="text-sm font-semibold text-white">${formatMoney(lineTotalCents)}</p>
                       </div>
                     </div>
                   </div>
@@ -242,9 +228,7 @@ export default function CartPage() {
                   One or more cart items are unavailable or missing a valid size. Remove and re-add them before checkout.
                 </p>
               ) : null}
-              {checkoutError ? (
-                <p className="mt-2 text-xs text-red-200">{checkoutError}</p>
-              ) : null}
+              {checkoutError ? <p className="mt-2 text-xs text-red-200">{checkoutError}</p> : null}
             </aside>
           </div>
         )}

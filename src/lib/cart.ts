@@ -1,6 +1,7 @@
 // src/lib/cart.ts
 import type { Product } from "./products";
 import { ONE_OF_ONE_SIZE } from "./product-options";
+import { getProductSizeQuantity } from "./product-stock";
 
 export type CartItem = {
   productId: string;
@@ -8,7 +9,7 @@ export type CartItem = {
   qty: number;
 };
 
-type ProductStock = Pick<Product, "id" | "quantity">;
+type ProductStock = Pick<Product, "id" | "quantity" | "sizes" | "sizeQuantities">;
 
 const KEY = "bag_cart_v1";
 const EVT = "bag:cart";
@@ -133,20 +134,14 @@ export function addToCart(product: Product, size: string, qty = 1) {
   const items = getCart();
   const resolvedSize = resolveCartSize(product, size);
   const found = items.find((i) => i.productId === product.id && i.size === resolvedSize);
-  const maxQty = typeof product.quantity === "number" ? Math.max(0, Math.floor(product.quantity)) : undefined;
-  const currentProductQty = items
-    .filter((item) => item.productId === product.id)
-    .reduce((sum, item) => sum + item.qty, 0);
+  const maxQty = getProductSizeQuantity(product, resolvedSize);
 
   if (found) {
     const nextQty = found.qty + Math.max(1, Math.floor(qty));
-    const maxLineQty =
-      typeof maxQty === "number" ? Math.max(0, maxQty - (currentProductQty - found.qty)) : undefined;
-    found.qty = typeof maxLineQty === "number" ? Math.min(nextQty, maxLineQty) : nextQty;
+    found.qty = Math.min(nextQty, maxQty);
   } else {
     const nextQty = Math.max(1, Math.floor(qty));
-    const maxLineQty = typeof maxQty === "number" ? Math.max(0, maxQty - currentProductQty) : undefined;
-    const normalizedQty = typeof maxLineQty === "number" ? Math.min(nextQty, maxLineQty) : nextQty;
+    const normalizedQty = Math.min(nextQty, maxQty);
     if (normalizedQty > 0) {
       items.push({ productId: product.id, size: resolvedSize, qty: normalizedQty });
     }
@@ -162,14 +157,9 @@ export function setCartItemQty(productId: string, size: string, qty: number, max
 
   const normalizedMax =
     typeof maxQty === "number" && Number.isFinite(maxQty) ? Math.max(0, Math.floor(maxQty)) : undefined;
-  const otherQty = items
-    .filter((item, itemIndex) => item.productId === productId && itemIndex !== index)
-    .reduce((sum, item) => sum + item.qty, 0);
-  const maxLineQty =
-    typeof normalizedMax === "number" ? Math.max(0, normalizedMax - otherQty) : undefined;
   const targetQty = Math.max(
     0,
-    typeof maxLineQty === "number" ? Math.min(Math.floor(qty), maxLineQty) : Math.floor(qty)
+    typeof normalizedMax === "number" ? Math.min(Math.floor(qty), normalizedMax) : Math.floor(qty)
   );
 
   if (targetQty <= 0) {
@@ -191,37 +181,30 @@ export function reconcileCartQuantities(products: ProductStock[]) {
   const items = getCart();
   if (!items.length) return;
 
-  const stockById = new Map(
-    products.map((product) => [product.id, typeof product.quantity === "number" ? Math.max(0, Math.floor(product.quantity)) : undefined])
-  );
+  const productById = new Map(products.map((product) => [product.id, product]));
 
   let changed = false;
   const next: CartItem[] = [];
-  const remainingById = new Map<string, number>();
 
   for (const item of items) {
-    if (!stockById.has(item.productId)) {
+    const product = productById.get(item.productId);
+    if (!product) {
       // Some callers only reconcile a subset of products.
       // Preserve unrelated cart items instead of dropping them.
       next.push(item);
       continue;
     }
 
-    const maxQty = stockById.get(item.productId);
-    if (typeof maxQty !== "number") {
-      next.push(item);
-      continue;
-    }
-
-    const remainingStock = remainingById.has(item.productId)
-      ? remainingById.get(item.productId) ?? 0
-      : maxQty;
-    const clampedQty = Math.max(0, Math.min(item.qty, remainingStock));
-    remainingById.set(item.productId, Math.max(0, remainingStock - clampedQty));
+    const resolvedSize = item.size || (product.sizes.length === 1 ? product.sizes[0] : "");
+    const maxQty = resolvedSize ? getProductSizeQuantity(product, resolvedSize) : 0;
+    const clampedQty = Math.max(0, Math.min(item.qty, maxQty));
 
     if (clampedQty !== item.qty) changed = true;
     if (clampedQty > 0) {
-      next.push({ ...item, qty: clampedQty });
+      const normalizedItem =
+        resolvedSize && resolvedSize !== item.size ? { ...item, size: resolvedSize, qty: clampedQty } : { ...item, qty: clampedQty };
+      if (normalizedItem.size !== item.size) changed = true;
+      next.push(normalizedItem);
     } else {
       changed = true;
     }

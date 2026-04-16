@@ -5,6 +5,7 @@ import {
   PRODUCT_CATEGORY_VALUES,
   type ProductCategory,
 } from "@/lib/product-options";
+import { getProductSizeQuantity } from "@/lib/product-stock";
 
 export const SORT_VALUES = ["featured", "price-asc", "price-desc", "name-asc", "name-desc"] as const;
 
@@ -70,7 +71,7 @@ export function filterProductsByCategory(products: Product[], category?: Product
 
 export function filterProductsBySize(products: Product[], size?: string) {
   if (!size) return products;
-  return products.filter((product) => product.sizes?.includes(size));
+  return products.filter((product) => getProductSizeQuantity(product, size) > 0);
 }
 
 export function collectCategoryOptions(products: Product[]) {
@@ -88,7 +89,9 @@ export function collectSizeOptions(products: Product[]) {
   for (const product of products) {
     for (const size of product.sizes ?? []) {
       const normalized = size.trim();
-      if (normalized) sizes.add(normalized);
+      if (normalized && getProductSizeQuantity(product, normalized) > 0) {
+        sizes.add(normalized);
+      }
     }
   }
 

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { addToCart, getCartItemQty, reconcileCartQuantities } from "@/lib/cart";
 import { formatMoney, type Product } from "@/lib/products";
 import { getCategoryLabel, ONE_OF_ONE_SIZE } from "@/lib/product-options";
+import { getProductQuantity, getProductSizeQuantity } from "@/lib/product-stock";
 import { useCart } from "@/lib/useCart";
 import ZoomableLightboxImage from "@/app/components/ZoomableLightboxImage";
 
@@ -13,7 +14,16 @@ export default function ProductCard({ p }: { p: Product }) {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [imageIndex, setImageIndex] = useState(0);
   const { items } = useCart();
-  const defaultSize = p.sizes?.find((size) => size.trim()) || ONE_OF_ONE_SIZE;
+
+  const allSizes = useMemo(
+    () => (p.sizes?.length ? p.sizes.filter((size) => size.trim()) : [ONE_OF_ONE_SIZE]),
+    [p.sizes]
+  );
+  const availableSizes = useMemo(
+    () => allSizes.filter((size) => getProductSizeQuantity(p, size) > 0),
+    [allSizes, p]
+  );
+  const defaultSize = availableSizes[0] || allSizes[0] || ONE_OF_ONE_SIZE;
   const [selectedSize, setSelectedSize] = useState(defaultSize);
 
   const gallery = useMemo(() => {
@@ -21,16 +31,22 @@ export default function ProductCard({ p }: { p: Product }) {
     return images.length ? images : [p.image];
   }, [p.image, p.images]);
 
-  const totalStock = typeof p.quantity === "number" ? Math.max(0, p.quantity) : undefined;
+  const totalStock = getProductQuantity(p);
   const inCartQty = useMemo(() => getCartItemQty(p.id), [items, p.id]);
   const selectedSizeQty = useMemo(() => getCartItemQty(p.id, selectedSize), [items, p.id, selectedSize]);
-  const remainingQty = typeof totalStock === "number" ? Math.max(0, totalStock - inCartQty) : undefined;
-  const soldOut = typeof totalStock === "number" && totalStock <= 0;
-  const maxInCart = typeof remainingQty === "number" && remainingQty <= 0;
+  const selectedSizeStock = getProductSizeQuantity(p, selectedSize);
+  const selectedSizeRemaining = Math.max(0, selectedSizeStock - selectedSizeQty);
+  const soldOut = totalStock <= 0;
+  const maxInCart = selectedSizeRemaining <= 0;
   const hasImageStrip = gallery.length > 1;
-  const hasMultipleSizes = (p.sizes?.length ?? 0) > 1;
+  const hasMultipleSizes = allSizes.length > 1;
   const categoryLabel = getCategoryLabel(p.category);
-  const sizeLabel = p.sizes?.length ? p.sizes.join(", ") : "1 of 1";
+  const sizeLabel = allSizes.length ? allSizes.join(", ") : "1 of 1";
+
+  function getSizeOptionLabel(size: string) {
+    const sizeStock = getProductSizeQuantity(p, size);
+    return sizeStock > 0 ? `${size} (${sizeStock})` : `${size} (Sold out)`;
+  }
 
   function flashAdded() {
     setAdded(true);
@@ -38,7 +54,7 @@ export default function ProductCard({ p }: { p: Product }) {
   }
 
   function handleAddToCart() {
-    if (soldOut || maxInCart) return;
+    if (soldOut || maxInCart || selectedSizeStock <= 0) return;
     addToCart(p, selectedSize, 1);
     flashAdded();
   }
@@ -73,10 +89,15 @@ export default function ProductCard({ p }: { p: Product }) {
   }
 
   useEffect(() => {
-    if (typeof p.quantity === "number") {
-      reconcileCartQuantities([{ id: p.id, quantity: p.quantity }]);
-    }
-  }, [p.id, p.quantity]);
+    reconcileCartQuantities([
+      {
+        id: p.id,
+        sizes: allSizes,
+        quantity: p.quantity,
+        sizeQuantities: p.sizeQuantities,
+      },
+    ]);
+  }, [allSizes, p.id, p.quantity, p.sizeQuantities]);
 
   useEffect(() => {
     setSelectedSize(defaultSize);
@@ -143,7 +164,7 @@ export default function ProductCard({ p }: { p: Product }) {
             <p style={{ margin: 0, opacity: 0.72, fontSize: 13 }}>Sizes: {sizeLabel}</p>
             {hasMultipleSizes ? (
               <p style={{ margin: 0, opacity: 0.7, fontSize: 12 }}>
-                Selected size: {selectedSize} {selectedSizeQty > 0 ? `(${selectedSizeQty} in cart)` : ""}
+                Selected size: {selectedSize} {selectedSizeQty > 0 ? `(${selectedSizeQty} in cart)` : ""} | {selectedSizeRemaining} left
               </p>
             ) : null}
 
@@ -153,16 +174,13 @@ export default function ProductCard({ p }: { p: Product }) {
               </p>
             ) : null}
 
-            {typeof totalStock === "number" ? (
-              <div style={{ display: "grid", gap: 4 }}>
-                <p style={{ margin: 0, opacity: 0.82, fontSize: 13 }}>
-                  Available now: {remainingQty}
-                </p>
-                <p style={{ margin: 0, opacity: 0.68, fontSize: 12 }}>
-                  In your cart: {inCartQty} / {totalStock}
-                </p>
-              </div>
-            ) : null}
+            <div style={{ display: "grid", gap: 4 }}>
+              <p style={{ margin: 0, opacity: 0.82, fontSize: 13 }}>Total stock: {totalStock}</p>
+              <p style={{ margin: 0, opacity: 0.68, fontSize: 12 }}>
+                {selectedSize}: {selectedSizeQty} in cart / {selectedSizeStock} stocked
+              </p>
+              <p style={{ margin: 0, opacity: 0.68, fontSize: 12 }}>All sizes in cart: {inCartQty}</p>
+            </div>
 
             {gallery.length > 1 ? (
               <p style={{ margin: 0, fontSize: 12, opacity: 0.68, letterSpacing: "0.08em" }}>
@@ -184,7 +202,7 @@ export default function ProductCard({ p }: { p: Product }) {
             <select
               value={selectedSize}
               onChange={(event) => setSelectedSize(event.target.value)}
-              disabled={!p.sizes?.length}
+              disabled={!allSizes.length}
               style={{
                 minHeight: 38,
                 borderRadius: 999,
@@ -195,9 +213,14 @@ export default function ProductCard({ p }: { p: Product }) {
                 outline: "none",
               }}
             >
-              {(p.sizes?.length ? p.sizes : [ONE_OF_ONE_SIZE]).map((size) => (
-                <option key={size} value={size} style={{ color: "#000" }}>
-                  {size}
+              {allSizes.map((size) => (
+                <option
+                  key={size}
+                  value={size}
+                  disabled={getProductSizeQuantity(p, size) <= 0}
+                  style={{ color: "#000" }}
+                >
+                  {getSizeOptionLabel(size)}
                 </option>
               ))}
             </select>
@@ -218,275 +241,277 @@ export default function ProductCard({ p }: { p: Product }) {
               opacity: soldOut || maxInCart ? 0.5 : 1,
             }}
           >
-            {soldOut ? "Sold out" : added ? "Added" : maxInCart ? "Max in cart" : "Add to cart"}
+            {soldOut ? "Sold out" : added ? "Added" : maxInCart ? "Size maxed" : "Add to cart"}
           </button>
         </div>
       </div>
 
       {typeof window !== "undefined" && viewerOpen
         ? createPortal(
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={p.name}
-          onClick={closeViewer}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            background: "rgba(0,0,0,0.9)",
-            padding: "clamp(16px, 4vw, 36px)",
-            overflowY: "auto",
-            overscrollBehavior: "contain",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          <div
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              width: "min(1120px, 100%)",
-              margin: "0 auto",
-              display: "grid",
-              gap: 18,
-              pointerEvents: "auto",
-              paddingBottom: 8,
-            }}
-          >
             <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={p.name}
+              onClick={closeViewer}
               style={{
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-                gap: 16,
+                position: "fixed",
+                inset: 0,
+                zIndex: 1000,
+                background: "rgba(0,0,0,0.9)",
+                padding: "clamp(16px, 4vw, 36px)",
+                overflowY: "auto",
+                overscrollBehavior: "contain",
+                WebkitOverflowScrolling: "touch",
               }}
             >
-              <div>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: "clamp(24px, 3vw, 40px)",
-                    letterSpacing: "0.04em",
-                    color: "#fff",
-                  }}
-                >
-                  {p.name}
-                </h2>
-                <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.78)" }}>
-                  ${formatMoney(p.priceCents)}
-                  {typeof totalStock === "number" ? ` • Available now: ${remainingQty}` : ""}
-                </p>
-                <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.62)", fontSize: 13 }}>
-                  Category: {categoryLabel} | Sizes: {sizeLabel}
-                </p>
-                {hasMultipleSizes ? (
-                  <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.62)", fontSize: 13 }}>
-                    Selected size: {selectedSize} {selectedSizeQty > 0 ? `| ${selectedSizeQty} in cart` : ""}
-                  </p>
-                ) : null}
-                {typeof totalStock === "number" ? (
-                  <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.62)", fontSize: 13 }}>
-                    In your cart: {inCartQty} / {totalStock}
-                  </p>
-                ) : null}
-                {p.description ? (
-                  <p style={{ marginTop: 12, marginBottom: 0, color: "rgba(255,255,255,0.72)", lineHeight: 1.6 }}>
-                    {p.description}
-                  </p>
-                ) : null}
-              </div>
-
-              <button
-                type="button"
-                onClick={handleCloseClick}
+              <div
+                onClick={(event) => event.stopPropagation()}
                 style={{
-                  position: "relative",
-                  zIndex: 1001,
-                  border: "1px solid rgba(255,255,255,0.24)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "#fff",
-                  borderRadius: 999,
-                  padding: "10px 14px",
-                  cursor: "pointer",
-                  fontWeight: 700,
-                  letterSpacing: "0.08em",
+                  width: "min(1120px, 100%)",
+                  margin: "0 auto",
+                  display: "grid",
+                  gap: 18,
                   pointerEvents: "auto",
+                  paddingBottom: 8,
                 }}
               >
-                CLOSE
-              </button>
-            </div>
-
-            <ZoomableLightboxImage
-              src={gallery[imageIndex]}
-              alt={`${p.name} ${imageIndex + 1}`}
-              minHeight={hasImageStrip ? "min(48vh, 560px)" : "min(70vh, 720px)"}
-              maxHeight={hasImageStrip ? "min(42vh, 500px)" : "min(64vh, 680px)"}
-            >
-              {hasImageStrip ? (
-                <>
-                  <button
-                    type="button"
-                    aria-label="Previous image"
-                    onClick={showPrevious}
-                    style={{
-                      position: "absolute",
-                      left: 16,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      width: 48,
-                      height: 48,
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,0.24)",
-                      background: "rgba(0,0,0,0.5)",
-                      color: "#fff",
-                      fontSize: 24,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Next image"
-                    onClick={showNext}
-                    style={{
-                      position: "absolute",
-                      right: 16,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      width: 48,
-                      height: 48,
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,0.24)",
-                      background: "rgba(0,0,0,0.5)",
-                      color: "#fff",
-                      fontSize: 24,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ›
-                  </button>
-                </>
-              ) : null}
-
-              {hasImageStrip ? (
                 <div
                   style={{
-                    position: "absolute",
-                    bottom: 16,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    borderRadius: 999,
-                    background: "rgba(0,0,0,0.55)",
-                    padding: "8px 14px",
-                    fontSize: 12,
-                    letterSpacing: "0.08em",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: 16,
                   }}
                 >
-                  {imageIndex + 1} / {gallery.length}
-                </div>
-              ) : null}
-            </ZoomableLightboxImage>
-
-            {hasImageStrip ? (
-              <div
-                style={{
-                  display: "grid",
-                  gridAutoFlow: "column",
-                  gridAutoColumns: "minmax(92px, 140px)",
-                  gap: 10,
-                  overflowX: "auto",
-                  paddingBottom: 4,
-                }}
-              >
-                {gallery.map((img, idx) => {
-                  const selected = idx === imageIndex;
-
-                  return (
-                    <button
-                      key={`${p.id}-${img}-${idx}`}
-                      type="button"
-                      onClick={() => goToImage(idx)}
+                  <div>
+                    <h2
                       style={{
-                        border: selected ? "2px solid #fff" : "1px solid rgba(255,255,255,0.16)",
-                        background: selected ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
-                        borderRadius: 12,
-                        padding: 8,
-                        cursor: "pointer",
+                        margin: 0,
+                        fontSize: "clamp(24px, 3vw, 40px)",
+                        letterSpacing: "0.04em",
+                        color: "#fff",
                       }}
                     >
-                      <div
+                      {p.name}
+                    </h2>
+                    <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.78)" }}>
+                      ${formatMoney(p.priceCents)}
+                      {typeof totalStock === "number" ? ` | Total stock: ${totalStock}` : ""}
+                    </p>
+                    <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.62)", fontSize: 13 }}>
+                      Category: {categoryLabel} | Sizes: {sizeLabel}
+                    </p>
+                    {hasMultipleSizes ? (
+                      <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.62)", fontSize: 13 }}>
+                        Selected size: {selectedSize} {selectedSizeQty > 0 ? `| ${selectedSizeQty} in cart` : ""} | {selectedSizeRemaining} left
+                      </p>
+                    ) : null}
+                    <p style={{ marginTop: 8, marginBottom: 0, color: "rgba(255,255,255,0.62)", fontSize: 13 }}>
+                      {selectedSize}: {selectedSizeQty} in cart / {selectedSizeStock} stocked
+                    </p>
+                    {p.description ? (
+                      <p style={{ marginTop: 12, marginBottom: 0, color: "rgba(255,255,255,0.72)", lineHeight: 1.6 }}>
+                        {p.description}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCloseClick}
+                    style={{
+                      position: "relative",
+                      zIndex: 1001,
+                      border: "1px solid rgba(255,255,255,0.24)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "#fff",
+                      borderRadius: 999,
+                      padding: "10px 14px",
+                      cursor: "pointer",
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      pointerEvents: "auto",
+                    }}
+                  >
+                    CLOSE
+                  </button>
+                </div>
+
+                <ZoomableLightboxImage
+                  src={gallery[imageIndex]}
+                  alt={`${p.name} ${imageIndex + 1}`}
+                  minHeight={hasImageStrip ? "min(48vh, 560px)" : "min(70vh, 720px)"}
+                  maxHeight={hasImageStrip ? "min(42vh, 500px)" : "min(64vh, 680px)"}
+                >
+                  {hasImageStrip ? (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Previous image"
+                        onClick={showPrevious}
                         style={{
-                          height: 84,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          overflow: "hidden",
-                          borderRadius: 8,
+                          position: "absolute",
+                          left: 16,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          width: 48,
+                          height: 48,
+                          borderRadius: 999,
+                          border: "1px solid rgba(255,255,255,0.24)",
+                          background: "rgba(0,0,0,0.5)",
+                          color: "#fff",
+                          fontSize: 24,
+                          cursor: "pointer",
                         }}
                       >
-                        <img
-                          src={img}
-                          alt={`${p.name} thumbnail ${idx + 1}`}
-                          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-                        />
-                      </div>
-                    </button>
-                  );
-                })}
+                        {"<"}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Next image"
+                        onClick={showNext}
+                        style={{
+                          position: "absolute",
+                          right: 16,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          width: 48,
+                          height: 48,
+                          borderRadius: 999,
+                          border: "1px solid rgba(255,255,255,0.24)",
+                          background: "rgba(0,0,0,0.5)",
+                          color: "#fff",
+                          fontSize: 24,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {">"}
+                      </button>
+                    </>
+                  ) : null}
+
+                  {hasImageStrip ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        bottom: 16,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        borderRadius: 999,
+                        background: "rgba(0,0,0,0.55)",
+                        padding: "8px 14px",
+                        fontSize: 12,
+                        letterSpacing: "0.08em",
+                      }}
+                    >
+                      {imageIndex + 1} / {gallery.length}
+                    </div>
+                  ) : null}
+                </ZoomableLightboxImage>
+
+                {hasImageStrip ? (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridAutoFlow: "column",
+                      gridAutoColumns: "minmax(92px, 140px)",
+                      gap: 10,
+                      overflowX: "auto",
+                      paddingBottom: 4,
+                    }}
+                  >
+                    {gallery.map((img, idx) => {
+                      const selected = idx === imageIndex;
+
+                      return (
+                        <button
+                          key={`${p.id}-${img}-${idx}`}
+                          type="button"
+                          onClick={() => goToImage(idx)}
+                          style={{
+                            border: selected ? "2px solid #fff" : "1px solid rgba(255,255,255,0.16)",
+                            background: selected ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
+                            borderRadius: 12,
+                            padding: 8,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: 84,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              overflow: "hidden",
+                              borderRadius: 8,
+                            }}
+                          >
+                            <img
+                              src={img}
+                              alt={`${p.name} thumbnail ${idx + 1}`}
+                              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                            />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  <label style={{ display: "grid", gap: 6, minWidth: 160 }}>
+                    <span style={{ fontSize: 11, letterSpacing: "0.08em", opacity: 0.72, textTransform: "uppercase" }}>
+                      Size
+                    </span>
+                    <select
+                      value={selectedSize}
+                      onChange={(event) => setSelectedSize(event.target.value)}
+                      disabled={!allSizes.length}
+                      style={{
+                        minHeight: 40,
+                        borderRadius: 999,
+                        border: "1px solid rgba(255,255,255,0.25)",
+                        background: "rgba(255,255,255,0.08)",
+                        color: "#fff",
+                        padding: "0 14px",
+                        outline: "none",
+                      }}
+                    >
+                      {allSizes.map((size) => (
+                        <option
+                          key={size}
+                          value={size}
+                          disabled={getProductSizeQuantity(p, size) <= 0}
+                          style={{ color: "#000" }}
+                        >
+                          {getSizeOptionLabel(size)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={handleAddToCart}
+                    disabled={soldOut || maxInCart}
+                    style={{
+                      padding: "12px 18px",
+                      borderRadius: 999,
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "#fff",
+                      cursor: soldOut || maxInCart ? "not-allowed" : "pointer",
+                      opacity: soldOut || maxInCart ? 0.5 : 1,
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    {soldOut ? "Sold out" : added ? "Added" : maxInCart ? "Size maxed" : "Add to cart"}
+                  </button>
+                </div>
               </div>
-            ) : null}
-
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <label style={{ display: "grid", gap: 6, minWidth: 160 }}>
-                <span style={{ fontSize: 11, letterSpacing: "0.08em", opacity: 0.72, textTransform: "uppercase" }}>
-                  Size
-                </span>
-                <select
-                  value={selectedSize}
-                  onChange={(event) => setSelectedSize(event.target.value)}
-                  disabled={!p.sizes?.length}
-                  style={{
-                    minHeight: 40,
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.25)",
-                    background: "rgba(255,255,255,0.08)",
-                    color: "#fff",
-                    padding: "0 14px",
-                    outline: "none",
-                  }}
-                >
-                  {(p.sizes?.length ? p.sizes : [ONE_OF_ONE_SIZE]).map((size) => (
-                    <option key={size} value={size} style={{ color: "#000" }}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                disabled={soldOut || maxInCart}
-                style={{
-                  padding: "12px 18px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.3)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "#fff",
-                  cursor: soldOut || maxInCart ? "not-allowed" : "pointer",
-                  opacity: soldOut || maxInCart ? 0.5 : 1,
-                  letterSpacing: "0.06em",
-                }}
-              >
-                {soldOut ? "Sold out" : added ? "Added" : maxInCart ? "Max in cart" : "Add to cart"}
-              </button>
-            </div>
-          </div>
-        </div>
-        ,
-        document.body
-      )
+            </div>,
+            document.body
+          )
         : null}
     </>
   );

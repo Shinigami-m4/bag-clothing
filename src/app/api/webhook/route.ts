@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     }
 
     const rawCart = session.metadata?.cart;
-    let cart: Array<{ productId: string; qty: number }> = [];
+    let cart: Array<{ productId: string; size?: string; qty: number }> = [];
 
     if (rawCart) {
       try {
@@ -72,6 +72,7 @@ export async function POST(req: Request) {
           cart = parsed
             .map((entry) => ({
               productId: typeof entry?.productId === "string" ? entry.productId.trim() : "",
+              size: typeof entry?.size === "string" ? entry.size.trim() : undefined,
               qty: Math.max(0, Math.floor(Number(entry?.qty) || 0)),
             }))
             .filter((entry) => entry.productId && entry.qty > 0);

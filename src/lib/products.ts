@@ -1,6 +1,8 @@
 import type { ArtistId } from "./artists";
 import type { ProductCategory } from "./product-options";
 
+export type SizeQuantities = Record<string, number>;
+
 export type Product = {
   id: string;
   artist: ArtistId;
@@ -9,6 +11,7 @@ export type Product = {
   image: string;
   priceCents: number;
   sizes: string[];
+  sizeQuantities?: SizeQuantities;
   description?: string;
   quantity?: number;
   images?: string[];

@@ -9,6 +9,9 @@
     "sizes": [
       "One Size"
     ],
+    "sizeQuantities": {
+      "One Size": 2
+    },
     "description": "one size",
     "quantity": 2,
     "isPublished": true,
@@ -27,6 +30,9 @@
     "sizes": [
       "1 of 1"
     ],
+    "sizeQuantities": {
+      "1 of 1": 1
+    },
     "description": "xxxxx",
     "quantity": 1,
     "images": [

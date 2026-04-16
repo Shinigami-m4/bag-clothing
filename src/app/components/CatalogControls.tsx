@@ -193,7 +193,6 @@ export default function CatalogControls({
                   onClick={() => applyCategory(null)}
                 >
                   <span>Any</span>
-                  <span className="catalogOptionCheck">{!selectedCategory ? "âœ“" : ""}</span>
                 </button>
                 {categoryOptions.map((option) => (
                   <button
@@ -205,7 +204,6 @@ export default function CatalogControls({
                     onClick={() => applyCategory(option.value)}
                   >
                     <span>{option.label}</span>
-                    <span className="catalogOptionCheck">{selectedCategory === option.value ? "âœ“" : ""}</span>
                   </button>
                 ))}
               </div>
@@ -237,7 +235,6 @@ export default function CatalogControls({
                   onClick={() => applySize(null)}
                 >
                   <span>Any</span>
-                  <span className="catalogOptionCheck">{!selectedSize ? "âœ“" : ""}</span>
                 </button>
                 {sizeOptions.map((option) => (
                   <button
@@ -249,7 +246,6 @@ export default function CatalogControls({
                     onClick={() => applySize(option)}
                   >
                     <span>{option}</span>
-                    <span className="catalogOptionCheck">{selectedSize === option ? "âœ“" : ""}</span>
                   </button>
                 ))}
               </div>
@@ -350,7 +346,6 @@ export default function CatalogControls({
                     onClick={() => applySort(option.value)}
                   >
                     <span>{option.label}</span>
-                    <span className="catalogOptionCheck">{selectedSort === option.value ? "✓" : ""}</span>
                   </button>
                 ))}
               </div>

@@ -14,6 +14,7 @@ import {
   normalizeProductSizes,
   type ProductCategory,
 } from "@/lib/product-options";
+import { buildSizeQuantities, getProductQuantity } from "@/lib/product-stock";
 
 function toInt(value: unknown, fallback = 0) {
   const n = Number(value);
@@ -52,6 +53,19 @@ function toPublished(value: unknown, fallback = false) {
     if (["false", "0", "no", "off", "draft", "hidden"].includes(normalized)) return false;
   }
   return fallback;
+}
+
+function parseSizeQuantities(value: unknown) {
+  if (!value) return undefined;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return value && typeof value === "object" && !Array.isArray(value) ? value : undefined;
 }
 
 export async function GET() {
@@ -94,11 +108,19 @@ export async function POST(req: Request) {
           ? normalizeProductSizes(form.getAll("sizes"), category)
           : existing?.sizes ?? getDefaultSizesForCategory(category),
         description: String(form.get("description") || "").trim() || undefined,
-        quantity: toInt(form.get("quantity"), existing?.quantity ?? 0),
         isPublished: toPublished(form.get("isPublished"), existing?.isPublished ?? false),
         image,
         images: uploaded.length ? uploaded : existing?.images,
+        sizeQuantities: {},
+        quantity: 0,
       };
+
+      item.sizeQuantities = buildSizeQuantities(
+        item.sizes,
+        parseSizeQuantities(form.get("sizeQuantities")),
+        toInt(form.get("quantity"), existing?.quantity ?? 0)
+      );
+      item.quantity = getProductQuantity(item);
 
       const items = await upsertInventoryProduct(item);
       return NextResponse.json({ ok: true, items });
@@ -130,12 +152,20 @@ export async function POST(req: Request) {
         body && Object.hasOwn(body, "description")
           ? String(body?.description || "").trim() || undefined
           : existing?.description,
-      quantity: toInt(body?.quantity, existing?.quantity ?? 0),
       isPublished: toPublished(body?.isPublished, existing?.isPublished ?? false),
       images: Array.isArray(body?.images)
         ? body.images.map((x: unknown) => String(x)).filter(Boolean)
         : existing?.images,
+      sizeQuantities: {},
+      quantity: 0,
     };
+
+    item.sizeQuantities = buildSizeQuantities(
+      item.sizes,
+      body && Object.hasOwn(body, "sizeQuantities") ? parseSizeQuantities(body?.sizeQuantities) : existing?.sizeQuantities,
+      toInt(body?.quantity, existing?.quantity ?? 0)
+    );
+    item.quantity = getProductQuantity(item);
 
     const items = await upsertInventoryProduct(item);
     return NextResponse.json({ ok: true, items });

@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { findLiveProductById } from "@/lib/inventory.server";
 import { ONE_OF_ONE_SIZE } from "@/lib/product-options";
+import { getProductSizeQuantity } from "@/lib/product-stock";
 
 type CartItem = { productId: string; size?: string; qty: number };
 
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
 
   const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
   const sanitizedItems: CartItem[] = [];
+  const requestedBySize = new Map<string, number>();
 
   for (const it of items) {
     const p = await findLiveProductById(it.productId);
@@ -44,12 +46,17 @@ export async function POST(req: Request) {
     }
 
     const qty = Math.max(1, Math.min(99, it.qty));
-    if (typeof p.quantity === "number" && qty > p.quantity) {
+    const requestKey = `${p.id}::${resolvedSize}`;
+    const nextRequestedQty = (requestedBySize.get(requestKey) ?? 0) + qty;
+    const availableQty = getProductSizeQuantity(p, resolvedSize);
+
+    if (nextRequestedQty > availableQty) {
       return NextResponse.json(
-        { error: `${p.name} only has ${p.quantity} item${p.quantity === 1 ? "" : "s"} left.` },
+        { error: `${p.name} only has ${availableQty} item${availableQty === 1 ? "" : "s"} left in ${resolvedSize}.` },
         { status: 400 }
       );
     }
+    requestedBySize.set(requestKey, nextRequestedQty);
 
     line_items.push({
       quantity: qty,

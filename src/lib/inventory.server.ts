@@ -1,6 +1,11 @@
 import { artistConfig, type ArtistId } from "@/lib/artists";
 import { products, type Product } from "@/lib/products";
 import {
+  buildSizeQuantities,
+  getProductQuantity,
+  getProductSizeQuantity,
+} from "@/lib/product-stock";
+import {
   normalizeProductCategory,
   normalizeProductSizes,
 } from "@/lib/product-options";
@@ -10,6 +15,7 @@ import { buildProductAssetPath } from "@/lib/uploadPaths";
 export type InventoryProduct = Product & {
   description?: string;
   quantity: number;
+  sizeQuantities: Record<string, number>;
   images?: string[];
   isPublished: boolean;
 };
@@ -54,6 +60,11 @@ function normalizeInventoryItem(raw: unknown): InventoryProduct | null {
   if (!artist) return null;
   const category = normalizeProductCategory(item.category, `${item.id} ${item.name}`);
   const sizes = normalizeProductSizes(item.sizes, category);
+  const sizeQuantities = buildSizeQuantities(sizes, item.sizeQuantities, normalizeQuantity(item.quantity));
+  const quantity = getProductQuantity({
+    sizeQuantities,
+    quantity: normalizeQuantity(item.quantity),
+  });
 
   return {
     id: item.id.trim(),
@@ -63,8 +74,9 @@ function normalizeInventoryItem(raw: unknown): InventoryProduct | null {
     image: item.image.trim(),
     priceCents: normalizePrice(item.priceCents),
     sizes,
+    sizeQuantities,
     description: typeof item.description === "string" ? item.description.trim() : undefined,
-    quantity: normalizeQuantity(item.quantity),
+    quantity,
     images: Array.isArray(item.images)
       ? item.images.filter((v): v is string => typeof v === "string")
       : undefined,
@@ -94,7 +106,7 @@ export async function getAllProducts(): Promise<Product[]> {
 
 export function isLiveProduct(product: Product) {
   if (typeof product.isPublished === "boolean" && !product.isPublished) return false;
-  if (typeof product.quantity === "number" && product.quantity <= 0) return false;
+  if (getProductQuantity(product) <= 0) return false;
   return true;
 }
 
@@ -132,22 +144,38 @@ export async function upsertInventoryProduct(product: InventoryProduct) {
   return next;
 }
 
-export async function decrementInventoryProductQuantities(lines: Array<{ productId: string; qty: number }>) {
+export async function decrementInventoryProductQuantities(
+  lines: Array<{ productId: string; size?: string; qty: number }>
+) {
   const current = await readInventory();
   const next = [...current];
   let changed = false;
 
   for (const line of lines) {
     const productId = String(line.productId || "").trim();
+    const requestedSize = typeof line.size === "string" ? line.size.trim() : "";
     const qty = Math.max(0, Math.floor(Number(line.qty) || 0));
     if (!productId || qty <= 0) continue;
 
     const existingIndex = next.findIndex((item) => item.id === productId);
     if (existingIndex >= 0) {
       const existing = next[existingIndex];
-      const updatedQty = Math.max(0, existing.quantity - qty);
-      if (updatedQty !== existing.quantity) {
-        next[existingIndex] = { ...existing, quantity: updatedQty };
+      const resolvedSize =
+        requestedSize || (existing.sizes.length === 1 ? existing.sizes[0] : "");
+      if (!resolvedSize || !existing.sizes.includes(resolvedSize)) continue;
+
+      const currentSizeQty = getProductSizeQuantity(existing, resolvedSize);
+      const updatedSizeQty = Math.max(0, currentSizeQty - qty);
+      if (updatedSizeQty !== currentSizeQty) {
+        const sizeQuantities = {
+          ...existing.sizeQuantities,
+          [resolvedSize]: updatedSizeQty,
+        };
+        next[existingIndex] = {
+          ...existing,
+          sizeQuantities,
+          quantity: getProductQuantity({ ...existing, sizeQuantities }),
+        };
         changed = true;
       }
       continue;
@@ -156,10 +184,39 @@ export async function decrementInventoryProductQuantities(lines: Array<{ product
     const seeded = products.find((item) => item.id === productId);
     if (!seeded) continue;
 
+    const sizeQuantities = buildSizeQuantities(
+      seeded.sizes,
+      seeded.sizeQuantities,
+      seeded.quantity ?? 0
+    );
+    const resolvedSize =
+      requestedSize || (seeded.sizes.length === 1 ? seeded.sizes[0] : "");
+    if (!resolvedSize || !seeded.sizes.includes(resolvedSize)) continue;
+
+    const currentSizeQty = getProductSizeQuantity(
+      {
+        sizes: seeded.sizes,
+        sizeQuantities,
+        quantity: seeded.quantity ?? 0,
+      },
+      resolvedSize
+    );
+    const updatedSizeQty = Math.max(0, currentSizeQty - qty);
+
     next.unshift({
       ...seeded,
       sizes: normalizeProductSizes(seeded.sizes, seeded.category),
-      quantity: Math.max(0, (seeded.quantity ?? 0) - qty),
+      sizeQuantities: {
+        ...sizeQuantities,
+        [resolvedSize]: updatedSizeQty,
+      },
+      quantity: getProductQuantity({
+        sizeQuantities: {
+          ...sizeQuantities,
+          [resolvedSize]: updatedSizeQty,
+        },
+        quantity: seeded.quantity ?? 0,
+      }),
       isPublished: typeof seeded.isPublished === "boolean" ? seeded.isPublished : true,
     });
     changed = true;

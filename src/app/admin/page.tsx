@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import { artistConfig, type ArtistId } from "@/lib/artists";
-import { formatMoney } from "@/lib/products";
+import { formatMoney, type SizeQuantities } from "@/lib/products";
 import {
   getCategoryLabel,
   getCategorySizeOptions,
@@ -13,6 +13,11 @@ import {
   sortProductSizes,
   type ProductCategory,
 } from "@/lib/product-options";
+import {
+  buildSizeQuantities,
+  formatSizeQuantitySummary,
+  getProductQuantity,
+} from "@/lib/product-stock";
 import { buildPortfolioAssetPath, buildProductAssetPath } from "@/lib/uploadPaths";
 
 type InventoryItem = {
@@ -23,6 +28,7 @@ type InventoryItem = {
   priceCents: number;
   image: string;
   sizes: string[];
+  sizeQuantities: SizeQuantities;
   description?: string;
   quantity: number;
   images?: string[];
@@ -60,6 +66,29 @@ function parseOptionalWhole(raw: string): number | null {
 function normalizeAdminSizes(sizes: string[], category: ProductCategory) {
   if (sizes.includes(ONE_OF_ONE_SIZE)) return [ONE_OF_ONE_SIZE];
   return sortProductSizes(sizes, category);
+}
+
+function buildSizeQuantityTextMap(
+  sizes: string[],
+  value?: SizeQuantities | Record<string, string> | null,
+  fallbackTotal = 0
+) {
+  const normalized = buildSizeQuantities(sizes, value, fallbackTotal);
+  return Object.fromEntries(sizes.map((size) => [size, String(normalized[size] ?? 0)]));
+}
+
+function parseAdminSizeQuantities(sizes: string[], values: Record<string, string>) {
+  const sizeQuantities: SizeQuantities = {};
+
+  for (const size of sizes) {
+    const quantity = parseOptionalWhole(values[size] ?? "");
+    if (quantity === null) {
+      throw new Error(`Quantity for size ${size} must be a whole number (0 or higher).`);
+    }
+    sizeQuantities[size] = quantity;
+  }
+
+  return sizeQuantities;
 }
 
 function readImageFiles(fileList: FileList | null) {
@@ -102,9 +131,11 @@ export default function AdminPage() {
   const [artist, setArtist] = useState<ArtistId>(ARTIST_OPTIONS[0]);
   const [category, setCategory] = useState<ProductCategory>("other");
   const [sizes, setSizes] = useState<string[]>(() => getDefaultSizesForCategory("other"));
+  const [sizeQuantityTexts, setSizeQuantityTexts] = useState<Record<string, string>>(() =>
+    buildSizeQuantityTextMap(getDefaultSizesForCategory("other"))
+  );
   const [priceUsd, setPriceUsd] = useState("");
   const [description, setDescription] = useState("");
-  const [quantityText, setQuantityText] = useState("");
   const [isPublished, setIsPublished] = useState(false);
   const [image, setImage] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -158,6 +189,14 @@ export default function AdminPage() {
   );
   const categorySizeOptions = useMemo(() => getCategorySizeOptions(category), [category]);
   const oneOfOneSelected = sizes.includes(ONE_OF_ONE_SIZE);
+  const draftTotalQuantity = useMemo(
+    () =>
+      sizes.reduce((sum, size) => {
+        const quantity = parseOptionalWhole(sizeQuantityTexts[size] ?? "");
+        return sum + (quantity ?? 0);
+      }, 0),
+    [sizes, sizeQuantityTexts]
+  );
 
   function redirectToAdminLogin() {
     window.location.href = "/?gate=1&intent=admin&next=/admin";
@@ -192,23 +231,28 @@ export default function AdminPage() {
   }
 
   function handleCategoryChange(nextCategory: ProductCategory) {
+    const nextSizes = getDefaultSizesForCategory(nextCategory);
     setCategory(nextCategory);
-    setSizes(getDefaultSizesForCategory(nextCategory));
+    setSizes(nextSizes);
+    setSizeQuantityTexts((current) => buildSizeQuantityTextMap(nextSizes, current));
   }
 
   function toggleSize(size: string) {
-    setSizes((current) => {
+    const nextSizes = (() => {
       if (size === ONE_OF_ONE_SIZE) {
-        return current.includes(ONE_OF_ONE_SIZE) ? getDefaultSizesForCategory(category) : [ONE_OF_ONE_SIZE];
+        return sizes.includes(ONE_OF_ONE_SIZE) ? getDefaultSizesForCategory(category) : [ONE_OF_ONE_SIZE];
       }
 
-      const withoutOneOfOne = current.filter((entry) => entry !== ONE_OF_ONE_SIZE);
+      const withoutOneOfOne = sizes.filter((entry) => entry !== ONE_OF_ONE_SIZE);
       const next = withoutOneOfOne.includes(size)
         ? withoutOneOfOne.filter((entry) => entry !== size)
         : [...withoutOneOfOne, size];
 
       return normalizeAdminSizes(next, category);
-    });
+    })();
+
+    setSizes(nextSizes);
+    setSizeQuantityTexts((current) => buildSizeQuantityTextMap(nextSizes, current));
   }
 
   function resetInventoryForm() {
@@ -216,10 +260,11 @@ export default function AdminPage() {
     setName("");
     setArtist(ARTIST_OPTIONS[0]);
     setCategory("other");
-    setSizes(getDefaultSizesForCategory("other"));
+    const nextSizes = getDefaultSizesForCategory("other");
+    setSizes(nextSizes);
+    setSizeQuantityTexts(buildSizeQuantityTextMap(nextSizes));
     setPriceUsd("");
     setDescription("");
-    setQuantityText("");
     setIsPublished(false);
     setImage("");
     setFiles([]);
@@ -232,10 +277,11 @@ export default function AdminPage() {
     setName(item.name);
     setArtist(item.artist);
     setCategory(item.category);
-    setSizes(normalizeAdminSizes(item.sizes ?? [], item.category));
+    const nextSizes = normalizeAdminSizes(item.sizes ?? [], item.category);
+    setSizes(nextSizes);
+    setSizeQuantityTexts(buildSizeQuantityTextMap(nextSizes, item.sizeQuantities, item.quantity));
     setPriceUsd(item.priceCents > 0 ? (item.priceCents / 100).toString() : "");
     setDescription(item.description || "");
-    setQuantityText(String(item.quantity ?? 0));
     setIsPublished(Boolean(item.isPublished));
     setImage(item.image || "");
     setFiles([]);
@@ -257,15 +303,16 @@ export default function AdminPage() {
         throw new Error("Price must be a valid number (example: 70 or 70.00).");
       }
 
-      const quantity = parseOptionalWhole(quantityText);
-      if (quantity === null) {
-        throw new Error("Quantity must be a whole number (0 or higher).");
-      }
-
       const selectedSizes = normalizeAdminSizes(sizes, category);
       if (!selectedSizes.length) {
         throw new Error("Select at least one size for this category or choose 1 of 1.");
       }
+
+      const sizeQuantities = parseAdminSizeQuantities(selectedSizes, sizeQuantityTexts);
+      const quantity = getProductQuantity({
+        sizeQuantities,
+        quantity: 0,
+      });
 
       const productId = id.trim();
       let uploaded: string[] = [];
@@ -290,6 +337,7 @@ export default function AdminPage() {
           category,
           priceCents,
           sizes: selectedSizes,
+          sizeQuantities,
           description,
           quantity,
           isPublished,
@@ -520,7 +568,7 @@ export default function AdminPage() {
         </p>
         <p className="mt-1 text-sm text-white/80">
           Products only appear on the live site when <b>Live on Website</b> is turned on. Any live
-          product with quantity <b>0</b> is hidden automatically.
+          product with total stock <b>0</b> is hidden automatically.
         </p>
         <p className="mt-1 text-sm text-white/80">
           On phone, use <b>Select Product Images</b> to choose multiple photos from a folder or
@@ -632,9 +680,40 @@ export default function AdminPage() {
               })}
             </div>
 
-            <span className="text-xs text-white/65">
-              Selected: {sizes.length ? sizes.join(", ") : "None"}
-            </span>
+          <span className="text-xs text-white/65">
+            Selected: {sizes.length ? sizes.join(", ") : "None"}
+          </span>
+          </div>
+
+          <div className="grid gap-2 rounded border border-white/20 bg-white/5 px-3 py-3 lg:col-span-2">
+            <div className="grid gap-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-white/80">Stock by Size</span>
+              <span className="text-xs text-white/65">
+                Set the inventory for each selected size. Total stock updates automatically from these values.
+              </span>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {sizes.map((size) => (
+                <label key={size} className="grid gap-1">
+                  <span className="text-xs uppercase tracking-[0.12em] text-white/80">{size}</span>
+                  <input
+                    className="rounded border border-white/30 bg-white px-3 py-2 text-black"
+                    placeholder="0"
+                    value={sizeQuantityTexts[size] ?? "0"}
+                    onChange={(e) =>
+                      setSizeQuantityTexts((current) => ({
+                        ...current,
+                        [size]: e.target.value,
+                      }))
+                    }
+                    inputMode="numeric"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <span className="text-xs text-white/65">Total units in stock: {draftTotalQuantity}</span>
           </div>
 
           <label className="grid gap-1 lg:col-span-2">
@@ -647,18 +726,6 @@ export default function AdminPage() {
               onChange={(e) => setDescription(e.target.value)}
             />
             
-          </label>
-
-          <label className="grid gap-1">
-            <span className="text-xs uppercase tracking-[0.12em] text-white/80">Quantity</span>
-            <input
-              className="rounded border border-white/30 bg-white px-3 py-2 text-black"
-              placeholder="12"
-              value={quantityText}
-              onChange={(e) => setQuantityText(e.target.value)}
-              inputMode="numeric"
-            />
-            <span className="text-xs text-white/65">Units in stock. Quantity 0 hides the product from the live site.</span>
           </label>
 
           <label className="grid gap-1">
@@ -681,7 +748,7 @@ export default function AdminPage() {
             <span className="grid gap-1">
               <span className="text-xs uppercase tracking-[0.12em] text-white/80">Live on Website</span>
               <span className="text-xs text-white/65">
-                Draft products stay in admin only. Published products show on the public site while quantity is above 0.
+                Draft products stay in admin only. Published products show on the public site while total stock is above 0.
               </span>
             </span>
           </label>
@@ -799,9 +866,10 @@ export default function AdminPage() {
                       </div>
                       <div className="mt-1 text-xs text-black/70">
                         ID: {x.id} | Artist: {x.artist} | Category: {getCategoryLabel(x.category)} | Price: $
-                        {formatMoney(x.priceCents)} | Qty: {x.quantity}
+                        {formatMoney(x.priceCents)} | Total Qty: {x.quantity}
                       </div>
                       <div className="mt-1 text-xs text-black/70">Sizes: {x.sizes?.join(", ") || "1 of 1"}</div>
+                      <div className="mt-1 text-xs text-black/70">Stock by size: {formatSizeQuantitySummary(x)}</div>
                       <div className="mt-1 text-xs text-black/70">{x.description || "No description"}</div>
                     </div>
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[172px]">
